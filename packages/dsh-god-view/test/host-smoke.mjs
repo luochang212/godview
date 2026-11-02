@@ -131,10 +131,12 @@ let out = await status.execute({ name: 'Alice', focus: 'wiring the panel.' }, { 
 assert.match(out.text, /Alice/);
 out = await status.execute({ name: 'Bob', focus: 'writing tests' }, { agent: bob });
 assert.match(out.text, /Alice/);
+assert.match(out.text, /Other sessions:/);
 
 out = await roster.execute({}, { agent: bob });
 assert.match(out.text, /Parallel team/);
 assert.match(out.text, /wiring the panel/);
+assert.match(out.text, /Sessions: \d+ listed/);
 
 const allow = { kind: 'allow' };
 let decision = await pre({ name: 'write', agent: alice, arguments: { file_path: 'src/auto.ts' } }, async () => allow);
@@ -152,6 +154,9 @@ assert.ok(promptEntry, 'the prompt context is installed');
 const promptText = promptEntry.text();
 assert.match(promptText, /Your active change .+: wiring the panel\. Paths: src\/auto\.ts/);
 assert.doesNotMatch(promptText, /\.\. Paths/);
+assert.match(promptText, /Other sessions in this repository/);
+assert.match(promptText, /\[idle\] is alive but not running/);
+assert.doesNotMatch(promptText, /Other agents are working/);
 decision = await pre({ name: 'write', agent: bob, arguments: { file_path: 'src/auto.ts' } }, async () => allow);
 assert.equal(decision.kind, 'deny');
 assert.match(decision.reason, /File lease conflict/);
@@ -270,6 +275,8 @@ const frozenAfter = JSON.parse(fs.readFileSync(path.join(repo, '.dsh/parallel/ag
 assert.equal(frozenAfter.updatedAt, frozenBefore.updatedAt, 'a dormant host does not refresh the presence row');
 assert.equal(frozenAfter.lastAction, frozenBefore.lastAction, 'a dormant host records no lastAction');
 
+const staleActivity = Date.now() - 60 * 60_000;
+S.updateAgent(repo, aliceId, { now: staleActivity });
 response = await fetch(base + '/coordination', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
@@ -277,6 +284,9 @@ response = await fetch(base + '/coordination', {
 });
 assert.equal((await response.json()).enabled, true);
 assert.equal(tools.size, 3, 'the panel switch restores the team tools');
+const rematerialized = S.getAgent(repo, aliceId);
+assert.equal(rematerialized.updatedAt, staleActivity, 'switch-on materialization is not activity');
+assert.ok(rematerialized.heartbeatAt > staleActivity, 'switch-on still refreshes the heartbeat');
 
 const cross = await fetch(base + '/state', { headers: { origin: 'http://evil.example' } });
 assert.equal(cross.status, 403);
@@ -292,6 +302,57 @@ await tools.get('team_status').execute({ status: 'done' }, { agent: bob });
 assert.equal(S.getClaim(repo, 'src/done.ts'), undefined, 'done releases explicit leases too');
 const doneChange = S.listChanges(repo, { state: 'done' }).find((change) => change.summary === 'status done');
 assert.ok(doneChange, 'the release records the status-done summary');
+const doneRoster = await roster.execute({}, { agent: bob });
+assert.doesNotMatch(doneRoster.text, /-\s+Bob\s+\[/);
+assert.match(doneRoster.text, /Sessions: \d+ listed/);
+
+// team_status idle also releases auto leases; only onStatus idle did before.
+const idleAuto = await pre(
+  { name: 'write', agent: alice, arguments: { file_path: 'src/idle-tool.ts' } },
+  async () => allow,
+);
+assert.equal(idleAuto.kind, 'allow');
+assert.ok(S.getClaim(repo, 'src/idle-tool.ts').auto);
+await tools.get('team_status').execute({ status: 'idle' }, { agent: alice });
+assert.equal(S.getClaim(repo, 'src/idle-tool.ts'), undefined, 'team_status idle releases the auto lease');
+
+// A switch flip made by another process is noticed on the next coordination
+// check, and it must release this host's auto leases, not just drop tools.
+const externalAuto = await pre(
+  { name: 'write', agent: alice, arguments: { file_path: 'src/external-off.ts' } },
+  async () => allow,
+);
+assert.equal(externalAuto.kind, 'allow');
+assert.ok(S.getClaim(repo, 'src/external-off.ts').auto);
+S.writeCoordination(registry, false);
+emit('agent/status', { agent: alice, status: 'running' });
+assert.equal(S.getClaim(repo, 'src/external-off.ts'), undefined, 'external off releases auto leases');
+assert.equal(tools.size, 0, 'external off removes the team tools');
+S.writeCoordination(registry, true);
+emit('agent/status', { agent: alice, status: 'running' });
+assert.equal(tools.size, 3, 'external on restores the team tools');
+
+// team_claim paths are repository-relative even when the session lives in a
+// subdirectory; the write guard keeps its cwd-relative behavior.
+const dave = makeAgent('session-dave-246810');
+dave.session.header.cwd = path.join(repo, 'packages', 'x');
+emit('agent/status', { agent: dave, status: 'running' });
+await tools.get('team_claim').execute({ action: 'claim', paths: ['lib/dave.ts'], reason: 'nested' }, { agent: dave });
+assert.ok(S.getClaim(repo, 'lib/dave.ts'), 'team_claim anchors at the repository root');
+assert.equal(S.getClaim(repo, 'packages/x/lib/dave.ts'), undefined, 'no cwd-relative phantom lease');
+await tools.get('team_claim').execute({ action: 'release', paths: ['lib/dave.ts'] }, { agent: dave });
+assert.equal(S.getClaim(repo, 'lib/dave.ts'), undefined);
+
+// config.root is authoritative: a session outside any repository still joins
+// the configured board instead of being skipped by the repo-marker check.
+const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pt-host-nogit-'));
+const frank = makeAgent('session-frank-13579');
+frank.session.header.cwd = outside;
+emit('agent/status', { agent: frank, status: 'running' });
+const frankId = S.agentIdForSession('session-frank-13579');
+assert.ok(S.getAgent(repo, frankId), 'config.root forces a session outside a repo onto the configured board');
+assert.equal(S.getAgent(outside, frankId), undefined, 'the session cwd gets no board');
+fs.rmSync(outside, { recursive: true, force: true });
 
 await new Promise((resolve) => server.close(resolve));
 

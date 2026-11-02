@@ -335,7 +335,7 @@ class TeamRuntime {
 
   hasRepoMarker(root) {
     try {
-      return fs.existsSync(path.join(root, '.git')) || fs.existsSync(path.join(root, S.STORE_DIR));
+      return fs.existsSync(path.join(root, '.git')) || S.hasBoard(root);
     } catch {
       return false;
     }
@@ -366,7 +366,14 @@ class TeamRuntime {
       const enabled = S.readCoordination(this.cfg.registryDir).enabled;
       const changed = enabled !== this.coordinationOn;
       this.coordinationOn = enabled;
-      if (changed) this.syncTools();
+      if (changed) {
+        this.syncTools();
+        // The switch is a registry file shared by every host; another host (or
+        // another machine) can flip it. Match the POST path: turning off drops
+        // this host's auto leases, turning on backfills presence and prompts.
+        if (enabled) this.materializeTracked();
+        else this.dematerializeTracked();
+      }
     }
     return this.coordinationOn === true;
   }
@@ -397,10 +404,17 @@ class TeamRuntime {
     for (const entry of this.tracked.values()) {
       try {
         S.ensureStore(entry.root);
+        const existing = S.getAgent(entry.root, entry.id);
+        const status =
+          existing && ['active', 'idle', 'blocked', 'done'].includes(existing.status)
+            ? existing.status
+            : entry.agent && entry.agent.status === 'idle'
+              ? 'idle'
+              : 'active';
         entry.presence = S.createAgent(entry.root, {
           id: entry.id,
           role: entry.role,
-          status: entry.agent && entry.agent.status === 'idle' ? 'idle' : 'active',
+          status,
           sessionId: entry.sessionId,
           sessionTitle: this.sessionTitle(entry.agent),
           parentId: entry.parentId,
@@ -408,6 +422,8 @@ class TeamRuntime {
           pid: process.pid,
           hostname: os.hostname(),
           ttlMs: this.cfg.ttlMs,
+          // Turning the switch on is bookkeeping, not activity: keep the last real one.
+          updatedAt: existing ? existing.updatedAt : undefined,
         });
         this.installPrompt(entry);
       } catch (error) {
@@ -450,14 +466,15 @@ class TeamRuntime {
       this.tracked.delete(sessionId);
     }
     const cwd = this.agentCwd(agent);
+    const explicitRoot = this.cfg.root || undefined;
     let root;
     try {
-      root = S.resolveRepoRoot(cwd);
+      root = S.resolveRepoRoot(cwd, explicitRoot);
     } catch (error) {
       this.warn(error);
       return undefined;
     }
-    if (!options.force && !this.hasRepoMarker(root)) {
+    if (!explicitRoot && !options.force && !this.hasRepoMarker(root)) {
       if (!this.missingRepoWarned.has(root)) {
         this.missingRepoWarned.add(root);
         console.warn(
@@ -511,6 +528,8 @@ class TeamRuntime {
         pid: process.pid,
         hostname: os.hostname(),
         ttlMs: this.cfg.ttlMs,
+        // Re-registering after a host restart is not activity either.
+        updatedAt: presence ? presence.updatedAt : undefined,
       });
     } catch (error) {
       this.warn(error);
@@ -656,9 +675,12 @@ class TeamRuntime {
     this.pendingTouches.set(entry.sessionId, item);
   }
 
-  repoRel(entry, raw) {
-    const cwd = this.agentCwd(entry.agent);
-    const absolute = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(cwd, raw);
+  repoRel(entry, raw, fromRoot = false) {
+    // Guard targets arrive relative to the tool's cwd; team_* paths are
+    // documented as repository-relative. Mixing the two silently leased
+    // packages/x/lib/x instead of lib/x for a session started in a subdir.
+    const base = fromRoot ? entry.root : this.agentCwd(entry.agent);
+    const absolute = path.isAbsolute(raw) ? path.resolve(raw) : path.resolve(base, raw);
     return S.normalizeRepoPath(entry.root, absolute);
   }
 
@@ -814,7 +836,9 @@ class TeamRuntime {
     if (agents.length === 0 && claims.length === 0) return '';
     const lines = [];
     lines.push('## Parallel agent team in ' + basename(root));
-    lines.push('Other agents are working in this same repository. Their state is available; never guess it.');
+    lines.push(
+      'Other sessions in this repository. [active] is running, [blocked] is waiting, [idle] is alive but not running. Never guess it.',
+    );
     const shown = agents.slice(0, this.cfg.maxPromptPeers);
     for (const peer of shown) {
       const state = peer.status;
@@ -917,6 +941,8 @@ class TeamRuntime {
         entry.presence = updated;
         if (status === 'done') {
           this.releaseAutoClaims(entry, true, 'status done');
+        } else if (status === 'idle') {
+          this.releaseAutoClaims(entry, false, 'status idle');
         }
         const others = S.listAgents(entry.root, { includeStale: false }).filter(
           (item) => item.id !== entry.id && item.status !== 'done',
@@ -933,7 +959,7 @@ class TeamRuntime {
             updated.status +
             (updated.focus ? ': ' + updated.focus : '') +
             '.',
-          'Active peers: ' +
+          'Other sessions: ' +
             (others.length
               ? others.map((item) => item.name + ' [' + item.status + '] ' + (item.focus || 'no focus')).join('; ')
               : 'none') +
@@ -950,7 +976,7 @@ class TeamRuntime {
     register({
       name: 'team_roster',
       description:
-        'Read the shared repository board: active agents and their one-line focus, file leases, and active/recent changes. Call this before starting work or when coordination is unclear. It never guesses.',
+        'Read the shared repository board: live sessions and their one-line focus, file leases, and active/recent changes. Ended sessions are omitted. Call this before starting work or when coordination is unclear. It never guesses.',
       parameters: objectSchema({
         include_stale: {
           type: 'boolean',
@@ -962,15 +988,13 @@ class TeamRuntime {
         if (!this.coordinationEnabled()) return textOutput(COORDINATION_OFF);
         const entry = this.ensureTracked(exec.agent);
         const includeStale = optBool(args, 'include_stale') === true;
-        const agents = S.listAgents(entry.root, { includeStale });
+        const agents = S.listAgents(entry.root, { includeStale }).filter((agent) => agent.status !== 'done');
         const claims = S.listClaims(entry.root);
+        const live = agents.filter((agent) => !agent.stale);
+        const running = live.filter((agent) => agent.status === 'active' || agent.status === 'blocked').length;
         const lines = ['# Parallel team - ' + basename(entry.root) + ' (' + entry.root + ')'];
         lines.push(
-          'Agents: ' +
-            agents.length +
-            ' total, ' +
-            agents.filter((item) => !item.stale && item.status !== 'done').length +
-            ' active-ish.',
+          'Sessions: ' + agents.length + ' listed, ' + live.length + ' live, ' + running + ' running/waiting.',
         );
         for (const agent of agents) {
           const state = agent.stale ? 'stale' : agent.status;
@@ -1075,7 +1099,7 @@ class TeamRuntime {
         const paths = optStringArray(args, 'paths', 100) || [];
         const relPaths = paths.map((value) => {
           try {
-            return this.repoRel(entry, value);
+            return this.repoRel(entry, value, true);
           } catch {
             return value;
           }
