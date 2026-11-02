@@ -160,6 +160,11 @@ assert.doesNotMatch(promptText, /Other agents are working/);
 decision = await pre({ name: 'write', agent: bob, arguments: { file_path: 'src/auto.ts' } }, async () => allow);
 assert.equal(decision.kind, 'deny');
 assert.match(decision.reason, /File lease conflict/);
+// The guard and the activity tracker read the write target through one shared
+// helper; the `path` spelling must hit the same lease check as `file_path`.
+decision = await pre({ name: 'write', agent: bob, arguments: { path: 'src/auto.ts' } }, async () => allow);
+assert.equal(decision.kind, 'deny', 'the path argument spelling must not bypass the lease check');
+assert.match(decision.reason, /File lease conflict/);
 // A tool result must update the session's lastAction and files (this used to
 // throw on an uninitialized pendingTouches map and silently skip the update).
 emit('tools/result', { name: 'write', agent: alice, arguments: { file_path: 'src/auto.ts' } });

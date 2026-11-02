@@ -100,6 +100,18 @@ function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+// Write/edit targets arrive under several argument spellings across host tool
+// variants. The guard and the activity tracker must read them through one
+// helper: a spelling the tracker records but the guard ignores would silently
+// bypass the lease check.
+function writeTargetArg(args) {
+  if (!isObject(args)) return undefined;
+  if (typeof args.file_path === 'string') return args.file_path;
+  if (typeof args.path === 'string') return args.path;
+  if (Array.isArray(args.paths) && typeof args.paths[0] === 'string') return args.paths[0];
+  return undefined;
+}
+
 function optString(args, key, max) {
   const value = args[key];
   if (value === undefined || value === null) return undefined;
@@ -638,13 +650,7 @@ class TeamRuntime {
     const tool = String(exec.name || '');
     if (!['write', 'edit', 'multi_edit', 'apply_patch', 'create_file', 'bash', 'run_code', 'read'].includes(tool))
       return;
-    let file;
-    const args = exec.arguments;
-    if (isObject(args)) {
-      if (typeof args.file_path === 'string') file = args.file_path;
-      else if (typeof args.path === 'string') file = args.path;
-      else if (Array.isArray(args.paths) && typeof args.paths[0] === 'string') file = args.paths[0];
-    }
+    let file = writeTargetArg(exec.arguments);
     const previous = this.pendingTouches.get(entry.sessionId);
     if (previous && previous.timer) clearTimeout(previous.timer);
     const item = { tool, file, at: Date.now(), timer: undefined };
@@ -707,7 +713,7 @@ class TeamRuntime {
     if (!exec || !exec.agent || (exec.name !== 'write' && exec.name !== 'edit')) return next();
     const entry = this.tracked.get(String(exec.agent.session.id));
     if (!entry) return next();
-    const raw = exec.arguments && exec.arguments.file_path;
+    const raw = writeTargetArg(exec.arguments);
     if (typeof raw !== 'string' || raw.length === 0) return next();
     let rel;
     try {
