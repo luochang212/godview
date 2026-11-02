@@ -486,7 +486,7 @@ window.__ModuleLoader__.load({
             agent.sessionTitle
               ? h('span', { className: 'pt-ptitle', title: agent.sessionTitle }, agent.sessionTitle)
               : null,
-            h('span', null, 'session ' + shortSession(agent.sessionId)),
+            h('span', null, L('会话 ', 'session ') + shortSession(agent.sessionId)),
             h('span', null, '·'),
             h('span', null, statusLabel(agent.status)),
             h('span', null, '·'),
@@ -568,7 +568,7 @@ window.__ModuleLoader__.load({
           const previous = open.get(event.path);
           if (previous !== undefined) {
             intervals[previous].end = at;
-            intervals[previous].summary = 'superseded';
+            intervals[previous].summary = L('已被取代', 'superseded');
           }
           const index =
             intervals.push({
@@ -697,11 +697,14 @@ window.__ModuleLoader__.load({
                   const width = Math.max(0.3, ((Math.min(item.end, axisEnd) - axisStart) / span) * 100 - left);
                   const title = [
                     path,
-                    item.agentName + (item.active ? ' (still held)' : '') + ' · ' + fmtDuration(item.end - item.start),
-                    'start ' + stamp(item.start),
-                    'end ' + (item.active ? 'now' : stamp(item.end)),
-                    'intent: ' + (item.intent || ''),
-                    item.summary ? 'summary: ' + item.summary : '',
+                    item.agentName +
+                      (item.active ? L('（仍持有）', ' (still held)') : '') +
+                      ' · ' +
+                      fmtDuration(item.end - item.start),
+                    L('开始 ', 'start ') + stamp(item.start),
+                    L('结束 ', 'end ') + (item.active ? L('现在', 'now') : stamp(item.end)),
+                    L('意图：', 'intent: ') + (item.intent || ''),
+                    item.summary ? L('摘要：', 'summary: ') + item.summary : '',
                   ]
                     .filter(Boolean)
                     .join('\n');
@@ -732,7 +735,11 @@ window.__ModuleLoader__.load({
                             .split(/[\s/]+/)
                             .filter(Boolean)
                             .pop() +
-                            (item.active ? ' · held' : width >= 18 ? ' · ' + fmtDuration(item.end - item.start) : ''),
+                            (item.active
+                              ? L(' · 持有中', ' · held')
+                              : width >= 18
+                                ? ' · ' + fmtDuration(item.end - item.start)
+                                : ''),
                         ),
                   );
                 }),
@@ -744,7 +751,11 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'pt-tip', style: { left: tip.x, top: tip.y } },
               h('div', { className: 'pt-tip-title' }, tip.path),
-              h('div', { className: 'pt-tip-line' }, tip.actor + ' · ' + tip.duration + (tip.active ? ' · held' : '')),
+              h(
+                'div',
+                { className: 'pt-tip-line' },
+                tip.actor + ' · ' + tip.duration + (tip.active ? L(' · 持有中', ' · held') : ''),
+              ),
               h('div', { className: 'pt-tip-line' }, tip.start + ' → ' + tip.end),
               tip.note ? h('div', { className: 'pt-tip-note' }, tip.note) : null,
             )
