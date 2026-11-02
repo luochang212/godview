@@ -145,6 +145,7 @@ Current implemented decisions cover:
 - [ADR 27](adr/implemented/27-rename-the-project-to-godview-and-its-adapters-to-dsh-godview-and-pi-godview.md): the repository and packages are `godview`, `dsh-godview`, and `pi-godview`; the old adapter names are abandoned, not aliased.
 - [ADR 28](adr/implemented/28-publish-only-the-dark-atlas-at-the-site-root.md): the published archive is only the dark Signal atlas at `/godview/`; no landing page, no Folio edition, no theme choice.
 - [ADR 29](adr/implemented/29-keep-the-dsh-parallel-board-path-and-per-host-identity-prefixes.md): the board path stays `.dsh/parallel` as a named historical exception; agent-id prefixes (`dsh-`, `pi-`) live with the hosts, not in the core store API.
+- [ADR 30](adr/implemented/30-unpublish-the-pre-rename-packages-to-release-the-new-names.md): the pre-rename `dsh-god-view` / `pi-god-view` packages were unpublished to clear npm's name-similarity block; ADR 27's "never published" premise is corrected there.
 
 When a choice is already shipped, use adrkit record with --raised-by and --decided-by. When it is not shipped, use adrkit propose, then adrkit implement after it ships. Do not edit a numbered record to change its choice; supersede or archive it with a new record. Run adrkit validate --all before finishing.
 
