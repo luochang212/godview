@@ -259,6 +259,17 @@ assert.equal(S.getClaim(repo, 'src/while-off.ts'), undefined, 'switching off rec
 snapshot = await (await fetch(base + '/state?root=' + encodeURIComponent(repo))).json();
 assert.equal(snapshot.coordination.enabled, false);
 
+// Off means frozen: a materialized session keeps its board row untouched. A
+// status flip and a trailing tool result must write nothing (AGENTS.md: a
+// plugin write to .dsh/parallel while the switch is off is a bug).
+const frozenBefore = JSON.parse(fs.readFileSync(path.join(repo, '.dsh/parallel/agents', aliceId + '.json'), 'utf8'));
+emit('agent/status', { agent: alice, status: 'idle' });
+emit('tools/result', { name: 'write', agent: alice, arguments: { file_path: 'src/off.ts' } });
+await new Promise((resolve) => setTimeout(resolve, 900));
+const frozenAfter = JSON.parse(fs.readFileSync(path.join(repo, '.dsh/parallel/agents', aliceId + '.json'), 'utf8'));
+assert.equal(frozenAfter.updatedAt, frozenBefore.updatedAt, 'a dormant host does not refresh the presence row');
+assert.equal(frozenAfter.lastAction, frozenBefore.lastAction, 'a dormant host records no lastAction');
+
 response = await fetch(base + '/coordination', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },

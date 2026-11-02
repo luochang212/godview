@@ -574,6 +574,10 @@ class TeamRuntime {
     let entry = this.tracked.get(String(agent.session.id));
     if (!entry && status === 'running') entry = this.track(agent);
     if (!entry) return;
+    // Tracking stays in memory while the switch is off (dormant entries are
+    // materialized when a human turns coordination back on), but the board is
+    // frozen: a dormant host writes no presence, leases, or change state.
+    if (!this.coordinationEnabled()) return;
     const next = status === 'running' ? 'active' : 'idle';
     try {
       const presence = S.getAgent(entry.root, entry.id);
@@ -592,6 +596,12 @@ class TeamRuntime {
     const sessionId = String(agent.session.id);
     const entry = this.tracked.get(sessionId);
     if (!entry) return;
+    // Same frozen-board rule as onStatus: a session that closes while the
+    // switch is off leaves the board row and its leases to the expiry sweep.
+    if (!this.coordinationEnabled()) {
+      this.tracked.delete(sessionId);
+      return;
+    }
     try {
       S.updateAgent(entry.root, entry.id, { status: 'done', lastAction: 'session closed' });
       this.releaseAutoClaims(entry, true, 'session closed');
@@ -603,6 +613,7 @@ class TeamRuntime {
 
   onToolResult(exec) {
     if (!exec || !exec.agent) return;
+    if (!this.coordinationEnabled()) return;
     const entry = this.tracked.get(String(exec.agent.session.id));
     if (!entry) return;
     const tool = String(exec.name || '');
@@ -620,6 +631,9 @@ class TeamRuntime {
     const item = { tool, file, at: Date.now(), timer: undefined };
     item.timer = setTimeout(() => {
       this.pendingTouches.delete(entry.sessionId);
+      // The switch may flip while this debounce is pending; a late write would
+      // touch a frozen board.
+      if (!this.coordinationEnabled()) return;
       try {
         const presence = S.getAgent(entry.root, entry.id);
         if (!presence) return;
@@ -803,7 +817,7 @@ class TeamRuntime {
     lines.push('Other agents are working in this same repository. Their state is available; never guess it.');
     const shown = agents.slice(0, this.cfg.maxPromptPeers);
     for (const peer of shown) {
-      const state = peer.stale ? 'stale' : peer.status;
+      const state = peer.status;
       const focus = peer.focus || peer.lastAction || '(no focus)';
       lines.push(
         '- ' +
