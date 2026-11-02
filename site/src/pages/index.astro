@@ -15,10 +15,10 @@ const statusLabels = {
 const pad = (number) => String(number).padStart(2, '0');
 const recordHref = (record) =>
   record.number ? `${folio('zh')}#adr-${record.number}` : record.href;
-const description = `dsh-god-view 的架构决策档案：${counts.implemented} 条已交付决策，记录并行 agent 看板为什么这样设计。`;
+const description = `godview 的架构决策档案：${counts.implemented} 条已交付决策，记录并行 agent 看板为什么这样设计。`;
 ---
 
-<Base title={`决策档案 · dsh-god-view`} {description}>
+<Base title={`决策档案 · godview`} {description}>
   <section class="hero">
     <div>
       <p class="eyebrow">DECISION ARCHIVE / 决策档案</p>
@@ -115,7 +115,7 @@ const description = `dsh-god-view 的架构决策档案：${counts.implemented} 
       </p>
     </div>
     <ul class="colophon">
-      <li><span>源文件</span><a href="https://github.com/luochang212/dsh-god-view/tree/main/adr">adr/</a></li>
+      <li><span>源文件</span><a href="https://github.com/luochang212/godview/tree/main/adr">adr/</a></li>
       <li><span>生成器</span><a href="https://github.com/luochang212/adr-kit">adr-kit {adrKitVersion}</a></li>
       <li><span>托管</span><strong>Astro + GitHub Pages</strong></li>
     </ul>

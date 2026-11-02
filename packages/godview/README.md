@@ -44,7 +44,7 @@ the source and exercised by `npm test`.
 ## Not a DSH plugin
 
 `godview` has no `dsh.bundle` and does not install a DSH panel. For the DSH
-host plugin and browser panel, install [`dsh-god-view`](https://www.npmjs.com/package/dsh-god-view).
+host plugin and browser panel, install [`dsh-godview`](https://www.npmjs.com/package/dsh-godview).
 
 ## License
 

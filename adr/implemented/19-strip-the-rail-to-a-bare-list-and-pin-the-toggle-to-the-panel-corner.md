@@ -5,7 +5,7 @@ description: Read when changing the rail's contents, its header or footer, or th
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/ui-flow.cjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/ui-flow.cjs]
 ---
 
 # ADR: 19 Strip the rail to a bare list and pin the toggle to the panel corner

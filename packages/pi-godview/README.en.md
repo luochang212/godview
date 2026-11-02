@@ -1,4 +1,4 @@
-# pi-god-view
+# pi-godview
 
 A God's Eye board for parallel agents in the Pi coding agent: who is doing what, which file is leased, and when it was released. Native TUI, no DSH or browser dependency.
 
@@ -7,13 +7,13 @@ This is the Pi adapter. The generic board store, protocol, and CLI live in [`god
 ## Install
 
 ```sh
-pi install npm:pi-god-view
+pi install npm:pi-godview
 ```
 
 Restart Pi or reload extensions. For local development, point Pi at the package directory:
 
 ```sh
-pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
+pi -e /absolute/path/to/dsh-godview/packages/pi-godview
 ```
 
 ## What it does
@@ -59,8 +59,8 @@ The panel refreshes every 2.5 seconds and is read-only: sessions, focus, live cl
 
 ```sh
 npm install
-npm run test -w pi-god-view
-node --check packages/pi-god-view/extensions/pi-god-view.js
+npm run test -w pi-godview
+node --check packages/pi-godview/extensions/pi-godview.js
 ```
 
 ## License

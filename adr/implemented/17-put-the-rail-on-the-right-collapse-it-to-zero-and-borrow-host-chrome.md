@@ -5,7 +5,7 @@ description: Read when changing the rail's side, width, collapse behaviour, the 
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/ui-flow.cjs, packages/dsh-god-view/test/client-locale.test.mjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/ui-flow.cjs, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
 # ADR: 17 Put the project rail on the right, collapse it to zero, and borrow the host's chrome
@@ -23,7 +23,7 @@ The chrome had drifted from the host's own controls. Our switch was 34x20 and tu
 
 **The rail is on the right.** It renders after the content in the DOM and is ordered to the right edge (`order: 2`), with `border-left: border-l1` instead of a right border. Width is 264px, the host's `SIDEBAR_MIN`, narrowing to 220px under 820px and stacking above the content under 700px.
 
-**It collapses to zero.** A 28px icon button in the topbar toggles the rail. It uses the host's compact-button size, 8px radius, `interactive-bg-hover` hover, and a 2px focus ring. The button carries `aria-expanded`, `aria-controls="pt-rail"`, and a mirrored panel icon while the rail is open. The preference is stored in `localStorage` (`dsh-god-view:rail`), so it survives a reload.
+**It collapses to zero.** A 28px icon button in the topbar toggles the rail. It uses the host's compact-button size, 8px radius, `interactive-bg-hover` hover, and a 2px focus ring. The button carries `aria-expanded`, `aria-controls="pt-rail"`, and a mirrored panel icon while the rail is open. The preference is stored in `localStorage` (`dsh-godview:rail`), so it survives a reload.
 
 **The rail has no brand block.** Its header is a single 56px row that lines up with the topbar and holds the caption and count, so the top hairline runs unbroken across the whole panel. The brand mark now appears only in the host sidebar entry and on the blank page.
 

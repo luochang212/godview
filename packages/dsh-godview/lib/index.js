@@ -1,5 +1,5 @@
 /**
- * dsh-god-view host plugin.
+ * dsh-godview host plugin.
  *
  * Keeps only the three things parallel agents need:
  *  - presence + a one-line focus (automatic when the first prompt arrives);
@@ -15,7 +15,7 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import * as S from 'godview';
 
-export const name = 'dsh-god-view';
+export const name = 'dsh-godview';
 export const inject = ['tools'];
 
 const require = createRequire(import.meta.url);
@@ -23,7 +23,7 @@ const CLI_PATH = path.join(path.dirname(require.resolve('godview/package.json'))
 // Fixed HTTP prefix. It is deliberately not configurable: the browser half
 // (lib/client.js) hardcodes the same path, so a custom route here would serve
 // an API the panel never calls. Keep the two constants in sync.
-const ROUTE = '/plugins/dsh-god-view/api';
+const ROUTE = '/plugins/dsh-godview/api';
 const MAX_HTTP_BODY = 64 * 1024;
 const COORDINATION_OFF =
   "Coordination is off for this repository. The human turned it off from the God's Eye View panel; " +
@@ -162,7 +162,7 @@ export function apply(ctx, config) {
   ctx.effect(() => {
     runtime.start();
     return () => runtime.stop();
-  }, 'dsh-god-view: lifecycle');
+  }, 'dsh-godview: lifecycle');
 }
 
 class TeamRuntime {
@@ -231,7 +231,7 @@ class TeamRuntime {
 
   warn(error) {
     const message = error && error.stack ? error.stack : String(error);
-    console.warn('[dsh-god-view] ' + message);
+    console.warn('[dsh-godview] ' + message);
   }
 
   bindEvents() {
@@ -478,7 +478,7 @@ class TeamRuntime {
       if (!this.missingRepoWarned.has(root)) {
         this.missingRepoWarned.add(root);
         console.warn(
-          '[dsh-god-view] skipping auto-presence for non-repo directory ' + root + ' (set config.root to override)',
+          '[dsh-godview] skipping auto-presence for non-repo directory ' + root + ' (set config.root to override)',
         );
       }
       return undefined;
@@ -561,7 +561,7 @@ class TeamRuntime {
               }
             },
           }),
-        'dsh-god-view: prompt-context',
+        'dsh-godview: prompt-context',
       );
     } catch (error) {
       this.warn(error);
@@ -584,7 +584,7 @@ class TeamRuntime {
       }
     }
     if (!entry) entry = this.track(agent, { force: true });
-    if (!entry) throw new Error('could not resolve a dsh-god-view store for this session');
+    if (!entry) throw new Error('could not resolve a dsh-godview store for this session');
     return entry;
   }
 
@@ -897,7 +897,7 @@ class TeamRuntime {
     if (this.toolDisposers.length > 0) return;
     const register = (definition) => {
       this.toolDisposers.push(
-        this.ctx.effect(() => this.ctx.tools.register(definition), 'dsh-god-view: tool ' + definition.name),
+        this.ctx.effect(() => this.ctx.tools.register(definition), 'dsh-godview: tool ' + definition.name),
       );
     };
 
@@ -1199,7 +1199,7 @@ class TeamRuntime {
                 path: ROUTE,
                 handler: (req, res) => this.handleHttp(req, res),
               }),
-            'dsh-god-view: http-api',
+            'dsh-godview: http-api',
           );
           this.disposers.push(() => {
             this.webHost = '';

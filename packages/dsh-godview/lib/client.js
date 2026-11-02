@@ -1,5 +1,5 @@
 /**
- * dsh-god-view browser plugin.
+ * dsh-godview browser plugin.
  *
  * Read-only observability. The board answers:
  *   which conversation is active?
@@ -10,7 +10,7 @@
  * There is no human composer or message queue: agents own focus, claim, and release.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-god-view',
+  id: 'dsh-godview',
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;
@@ -18,9 +18,9 @@ window.__ModuleLoader__.load({
 
     const React = require('react');
     const h = React.createElement;
-    const PANEL_ID = 'dsh-god-view';
-    const API = '/plugins/dsh-god-view/api';
-    const STYLE_ID = 'dsh-god-view-style';
+    const PANEL_ID = 'dsh-godview';
+    const API = '/plugins/dsh-godview/api';
+    const STYLE_ID = 'dsh-godview-style';
 
     // The Host owns the UI language. apply() subscribes to the Host locale
     // service; the served document language is only the pre-apply fallback, and
@@ -774,7 +774,7 @@ window.__ModuleLoader__.load({
 
     // The rail preference is chrome, not board state: it lives in local storage
     // so a reload keeps the layout the human chose (ADR 17).
-    const RAIL_KEY = 'dsh-god-view:rail';
+    const RAIL_KEY = 'dsh-godview:rail';
 
     function readRailOpen() {
       try {
@@ -1012,9 +1012,9 @@ window.__ModuleLoader__.load({
         setChinese(active.indexOf('zh') === 0);
         if (unregisterEntry) mountEntry();
       };
-      ctx.effect(() => ctx.locale.subscribe(syncLanguage), 'dsh-god-view: locale');
+      ctx.effect(() => ctx.locale.subscribe(syncLanguage), 'dsh-godview: locale');
       syncLanguage();
-      ctx.effect(() => ensureStyle(), 'dsh-god-view: styles');
+      ctx.effect(() => ensureStyle(), 'dsh-godview: styles');
       ctx.effect(
         () =>
           ctx.slots.inject('sidebar.panellist', () => {
@@ -1026,7 +1026,7 @@ window.__ModuleLoader__.load({
               }
             };
           }),
-        'dsh-god-view: sidebar-entry',
+        'dsh-godview: sidebar-entry',
       );
       ctx.effect(
         () =>
@@ -1039,7 +1039,7 @@ window.__ModuleLoader__.load({
               Panel,
             ),
           ),
-        'dsh-god-view: main-panel',
+        'dsh-godview: main-panel',
       );
     }
 

@@ -5,7 +5,7 @@ description: Read when changing the Gantt, the panel's content sections, or anyt
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-locale.test.mjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
 # ADR: 14 Show the Gantt only and move exact times into the bar tooltip

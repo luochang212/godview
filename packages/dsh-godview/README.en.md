@@ -1,4 +1,4 @@
-# dsh-god-view
+# dsh-godview
 
 Give parallel agents a god's eye view: who is active, what they are doing, which files they hold, and when those leases are released. A DSH plugin, on by default, with one switch to turn it off.
 
@@ -7,7 +7,7 @@ This package is the DSH adapter. The generic board store, protocol, and CLI live
 ## Install
 
 ```sh
-dsh plugin --profile desktop add dsh-god-view
+dsh plugin --profile desktop add dsh-godview
 ```
 
 Restart DSH; the sidebar entry is "God's Eye".
@@ -24,8 +24,8 @@ Boards are per repository and never block each other; the global project index i
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000
@@ -57,9 +57,9 @@ When the panel switch is off, the plugin is fully dormant: no board, no presence
 
 ## Documentation
 
-- [Full README](https://github.com/luochang212/dsh-god-view/blob/main/README.en.md)
-- [Protocol](https://github.com/luochang212/dsh-god-view/blob/main/docs/protocol.md)
-- [Decision archive](https://github.com/luochang212/dsh-god-view/tree/main/adr)
+- [Full README](https://github.com/luochang212/godview/blob/main/README.en.md)
+- [Protocol](https://github.com/luochang212/godview/blob/main/docs/protocol.md)
+- [Decision archive](https://github.com/luochang212/godview/tree/main/adr)
 
 ## License
 

@@ -1,9 +1,9 @@
-# Bundle layer for dsh-god-view.
-# Installed by `dsh plugin --profile <profile> add dsh-god-view`; the row
+# Bundle layer for dsh-godview.
+# Installed by `dsh plugin --profile <profile> add dsh-godview`; the row
 # references the package by name so Node resolution finds the installed code.
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000

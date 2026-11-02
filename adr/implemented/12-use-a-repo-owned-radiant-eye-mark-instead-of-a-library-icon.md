@@ -5,7 +5,7 @@ description: Read when changing the panel's brand mark, its sizes, or the icons 
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-locale.test.mjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
 # ADR: 12 Use a repo-owned radiant-eye mark instead of a library icon

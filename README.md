@@ -5,15 +5,15 @@
 
 # 上帝视角
 
-**dsh-god-view** · 多 Agent 协作看板 / DSH plugin
+**godview** · 多 Agent 协作看板（DSH / Pi 适配器）
 
 <p>
   <img src="https://img.shields.io/badge/version-0.1.0-0e7490?style=flat-square" alt="version" />
-  <img src="https://img.shields.io/badge/DSH-plugin-0e7490?style=flat-square" alt="DSH plugin" />
+  <img src="https://img.shields.io/badge/godview-0e7490?style=flat-square" alt="godview" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
-  <a href="https://github.com/luochang212/dsh-god-view/actions/workflows/ci.yml"><img src="https://github.com/luochang212/dsh-god-view/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://luochang212.github.io/dsh-god-view/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
+  <a href="https://github.com/luochang212/godview/actions/workflows/ci.yml"><img src="https://github.com/luochang212/godview/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://luochang212.github.io/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
 </p>
 
 **让同一仓库里的多个 Agent 看得见彼此，不抢同一个文件，并且留下可回看的占用时间轴。**
@@ -24,7 +24,7 @@
 - 哪个文件正被谁占用（file lease）；
 - 什么时候占用、什么时候释放、被谁占用（claim/release timeline）。
 
-仓库是 npm workspaces：`packages/godview` 是通用核心（store、CLI、协议），`packages/dsh-god-view` 是 DSH 适配层（host、client、bundle），`packages/pi-god-view` 是 Pi coding agent 的原生 TUI 适配层。
+仓库是 npm workspaces：`packages/godview` 是通用核心（store、CLI、协议），`packages/dsh-godview` 是 DSH 适配层（host、client、bundle），`packages/pi-godview` 是 Pi coding agent 的原生 TUI 适配层。
 
 ## 🔌 默认开启，随时可以关掉
 
@@ -114,10 +114,10 @@ claim 是精确到文件路径的，不支持目录或 glob。
 包已经声明 `dsh.bundle`，用 DSH 的插件命令安装会同时写入 bundle 层：
 
 ```sh
-dsh plugin --profile desktop add dsh-god-view
+dsh plugin --profile desktop add dsh-godview
 ```
 
-本地源码开发不要用 `add /path/to/packages/dsh-god-view`：适配层依赖 registry 上的 `godview`。用下面的 symlink 方式，或先发布 `godview`。
+本地源码开发不要用 `add /path/to/packages/dsh-godview`：适配层依赖 registry 上的 `godview`。用下面的 symlink 方式，或先发布 `godview`。
 
 Desktop 应用请在 **Settings → Plugins** 里安装，不要用命令行猜 profile 名。
 
@@ -127,8 +127,8 @@ bundle 自带默认配置，通常不用改。要覆盖时，在 $PROFILE/cordis
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000
@@ -146,33 +146,33 @@ root 留空即可。每个 Agent 会按自己的 session cwd 找到对应仓库�
 
 ### 开发时热更新（可选）
 
-直接改代码、刷新页面就能看到 client 变化时，可以改用 symlink 安装并手写 patch 行；这条路径不经过 bundle 层，改完 `packages/dsh-god-view/lib/index.js` 仍需重启 host。先在仓库根目录跑 `npm install`，让 workspace 把 `godview` 链接到根 `node_modules`：
+直接改代码、刷新页面就能看到 client 变化时，可以改用 symlink 安装并手写 patch 行；这条路径不经过 bundle 层，改完 `packages/dsh-godview/lib/index.js` 仍需重启 host。先在仓库根目录跑 `npm install`，让 workspace 把 `godview` 链接到根 `node_modules`：
 
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-god-view/packages/dsh-god-view "$PROFILE/node_modules/dsh-god-view"
+ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
 ```
 
 如果已经用 bundle 安装，不要再加这条手写行。
 
 ## 🥧 Pi coding agent
 
-同一套 board 也有 Pi 适配器 `packages/pi-god-view`：复用 `godview` 的 store 和 `.dsh/parallel/`，在 Pi TUI 里提供三个 `team_*` 工具、write/edit 前置 guard，以及 `/godview` 只读面板。没有浏览器面板，也不依赖 DSH 或 Cordis。
+同一套 board 也有 Pi 适配器 `packages/pi-godview`：复用 `godview` 的 store 和 `.dsh/parallel/`，在 Pi TUI 里提供三个 `team_*` 工具、write/edit 前置 guard，以及 `/godview` 只读面板。没有浏览器面板，也不依赖 DSH 或 Cordis。
 
 本地试用：
 
 ```sh
-pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
+pi -e /absolute/path/to/dsh-godview/packages/pi-godview
 ```
 
-Pi 与 DSH 可以同时查看同一仓库的 board。安装、工具语义和边界见 [packages/pi-god-view/README.md](packages/pi-god-view/README.md)。
+Pi 与 DSH 可以同时查看同一仓库的 board。安装、工具语义和边界见 [packages/pi-godview/README.md](packages/pi-godview/README.md)。
 
 ## 🧰 工具与 CLI
 
@@ -225,7 +225,7 @@ godview leave --id <id>
 关键取舍用 [adr-kit](https://github.com/luochang212/adr-kit) 记录在 [adr/](adr/README.md)。记录会继续增加，所以这里只留决定产品形状的几条；完整清单和每条的理由用 `adrkit list` 查看。
 
 - 每个仓库一块 board，全局索引只做发现和汇总，不合并 claim，也不加跨项目锁（ADR 1）。
-- 发布拆成 `godview`（通用 store/CLI）、`dsh-god-view`（DSH 适配层）和 `pi-god-view`（Pi TUI 适配层）三个 npm 包，放在同一个 workspace；三条版本线由 changesets 固定同步（ADR 25、ADR 26）。
+- 发布拆成 `godview`（通用 store/CLI）、`dsh-godview`（DSH 适配层）和 `pi-godview`（Pi TUI 适配层）三个 npm 包，放在同一个 workspace；三条版本线由 changesets 固定同步（ADR 25、ADR 26）。
 - 没有消息、收件箱或待回复；focus 是会话属性，面板除了协作开关只读（ADR 2、5）。
 - 占用是 claim/release 时间轴，按文件渲染成甘特图；甘特图是唯一的时间轴界面（ADR 3、14）。
 - 协作默认开启，由人从顶栏关掉；关闭时不写任何 board 状态（ADR 20，取代 ADR 9 的默认值）。
@@ -235,7 +235,7 @@ godview leave --id <id>
 
 ## 📚 决策档案
 
-完整档案发布在 GitHub Pages：https://luochang212.github.io/dsh-god-view/
+完整档案发布在 GitHub Pages：https://luochang212.github.io/godview/
 
 它由 `adr/` 里的记录生成，提供 Folio 和 Signal 两种排版，各有中英文版本。只有推送到 main 且改动涉及 site/、adr/、依赖清单或 workflow 本身时，[site.yml](.github/workflows/site.yml) 才重新构建并部署（也可以在 Actions 里手动触发）；生成的 HTML 和索引不提交。
 
@@ -271,9 +271,9 @@ write/edit 自动 claim，与他人的活跃 claim 冲突时拒绝写入；面�
 
 ```sh
 npm test                                   # all three workspace test suites
-npm run test -w pi-god-view                # Pi lifecycle / tools / guard / panel tests
+npm run test -w pi-godview                # Pi lifecycle / tools / guard / panel tests
 npm run host:smoke                         # tools / write guard / /projects / /state / /coordination
-node packages/dsh-god-view/test/ui-flow.cjs # read-only UI + the coordination switch
+node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the coordination switch
 ```
 
 UI 测试需要先启动桌面 DSH、Playwright，以及本机登录 cookie。测试断言：没有输入控件、恰好一个协作开关、右侧项目栏至少一行、选中的项目有甘特图、没有 console error；HAS_SESSION 之类的字段只是打印出来的探针。

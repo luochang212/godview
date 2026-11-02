@@ -92,7 +92,7 @@ export class PiBoard {
       if (!missingRepoWarned.has(this.root)) {
         missingRepoWarned.add(this.root);
         console.warn(
-          '[pi-god-view] skipping board for non-repo directory ' + this.root + ' (set options.root to override)',
+          '[pi-godview] skipping board for non-repo directory ' + this.root + ' (set options.root to override)',
         );
       }
       return this;
@@ -122,9 +122,7 @@ export class PiBoard {
     } catch (error) {
       // A broken board directory must not kill the coding session: run
       // dormant (no presence, no guard, no tools) and say why.
-      console.warn(
-        '[pi-god-view] board start failed, running dormant: ' + (error && error.stack ? error.stack : error),
-      );
+      console.warn('[pi-godview] board start failed, running dormant: ' + (error && error.stack ? error.stack : error));
     }
     return this;
   }
@@ -154,7 +152,7 @@ export class PiBoard {
         lastAction: reason,
       });
     } catch (error) {
-      console.warn('[pi-god-view] board stop failed: ' + (error && error.message ? error.message : error));
+      console.warn('[pi-godview] board stop failed: ' + (error && error.message ? error.message : error));
     }
   }
 
@@ -176,7 +174,7 @@ export class PiBoard {
       }
       this.presence = S.getAgent(this.root, this.id) || this.presence;
     } catch (error) {
-      console.warn('[pi-god-view] heartbeat failed: ' + (error && error.message ? error.message : error));
+      console.warn('[pi-godview] heartbeat failed: ' + (error && error.message ? error.message : error));
     }
   }
 
@@ -185,7 +183,7 @@ export class PiBoard {
     try {
       this.presence = S.updateAgent(this.root, this.id, patch);
     } catch (error) {
-      console.warn('[pi-god-view] presence update failed: ' + (error && error.message ? error.message : error));
+      console.warn('[pi-godview] presence update failed: ' + (error && error.message ? error.message : error));
     }
     return this.presence;
   }
@@ -247,7 +245,7 @@ export class PiBoard {
         { summary },
       );
     } catch (error) {
-      console.warn('[pi-god-view] auto-claim release failed: ' + (error && error.message ? error.message : error));
+      console.warn('[pi-godview] auto-claim release failed: ' + (error && error.message ? error.message : error));
     }
   }
 
@@ -262,7 +260,7 @@ export class PiBoard {
         { summary },
       );
     } catch (error) {
-      console.warn('[pi-god-view] lease release failed: ' + (error && error.message ? error.message : error));
+      console.warn('[pi-godview] lease release failed: ' + (error && error.message ? error.message : error));
     }
   }
 
@@ -325,7 +323,7 @@ export class PiBoard {
         // The guard protects coordination, not the write itself; if the board
         // is unwritable the write proceeds unguarded instead of failing.
         console.warn(
-          '[pi-god-view] auto-claim failed, write allowed: ' + (error && error.message ? error.message : error),
+          '[pi-godview] auto-claim failed, write allowed: ' + (error && error.message ? error.message : error),
         );
       }
     }

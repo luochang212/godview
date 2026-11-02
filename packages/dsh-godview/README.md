@@ -1,4 +1,4 @@
-# dsh-god-view
+# dsh-godview
 
 给并行 agent 一个上帝视角：谁在做什么、谁占着哪个文件、什么时候释放。DSH 插件，默认开启，面板上一个开关可以关掉。
 
@@ -7,7 +7,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile desktop add dsh-god-view
+dsh plugin --profile desktop add dsh-godview
 ```
 
 重启 DSH，侧边栏会出现「上帝视角 / God's Eye」。
@@ -24,8 +24,8 @@ dsh plugin --profile desktop add dsh-god-view
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000
@@ -57,9 +57,9 @@ node packages/godview/bin/godview.mjs claims
 
 ## 文档
 
-- [README（完整）](https://github.com/luochang212/dsh-god-view/blob/main/README.md)
-- [协议](https://github.com/luochang212/dsh-god-view/blob/main/docs/protocol.md)
-- [决策档案](https://github.com/luochang212/dsh-god-view/tree/main/adr)
+- [README（完整）](https://github.com/luochang212/godview/blob/main/README.md)
+- [协议](https://github.com/luochang212/godview/blob/main/docs/protocol.md)
+- [决策档案](https://github.com/luochang212/godview/tree/main/adr)
 
 ## License
 

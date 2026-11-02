@@ -9,6 +9,6 @@ npm run version-packages
 npm run release
 ```
 
-`godview` and `dsh-god-view` are a fixed group: a change to either package
+`godview` and `dsh-godview` are a fixed group: a change to either package
 releases both at the same version, so the generic core and the DSH adapter never
 drift apart.

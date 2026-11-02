@@ -1,5 +1,5 @@
 {
-  "name": "dsh-god-view",
+  "name": "dsh-godview",
   "version": "0.1.0",
   "description": "Give your agents a god's eye view: file leases, claim and release records, and a Gantt of who holds what, so parallel agents stop overwriting each other. A DSH plugin, on by default, one switch turns it off.",
   "type": "module",
@@ -63,11 +63,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luochang212/dsh-god-view.git",
-    "directory": "packages/dsh-god-view"
+    "url": "git+https://github.com/luochang212/godview.git",
+    "directory": "packages/dsh-godview"
   },
-  "homepage": "https://github.com/luochang212/dsh-god-view#readme",
+  "homepage": "https://github.com/luochang212/godview#readme",
   "bugs": {
-    "url": "https://github.com/luochang212/dsh-god-view/issues"
+    "url": "https://github.com/luochang212/godview/issues"
   }
 }

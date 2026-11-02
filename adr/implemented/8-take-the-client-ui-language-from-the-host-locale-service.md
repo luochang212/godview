@@ -6,7 +6,7 @@ raised-by: agent
 decided-by: agent
 created: 2026-10-30
 commit: 0a5ca5e
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-locale.test.mjs, packages/dsh-god-view/test/ui-lang.cjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs, packages/dsh-godview/test/ui-lang.cjs]
 ---
 
 # ADR: 8 Take the client UI language from the host locale service

@@ -64,7 +64,7 @@ function readRecords() {
         date: String(frontmatter.date ?? frontmatter.created ?? '').slice(0, 10),
         paths: Array.isArray(frontmatter.paths) ? frontmatter.paths.map(String) : [],
         file,
-        href: 'https://github.com/luochang212/dsh-god-view/blob/main/' + file,
+        href: 'https://github.com/luochang212/godview/blob/main/' + file,
       });
     }
   }
@@ -122,7 +122,7 @@ function buildIndex(records) {
     .sort();
   mkdirSync(dataDir, { recursive: true });
   const payload = {
-    project: 'dsh-god-view',
+    project: 'godview',
     adrKitVersion: adrKitVersion(),
     commit: shortCommit(),
     generatedAt: new Date().toISOString(),

@@ -27,7 +27,7 @@ A board is always repository-local. The index only lists roots; it never merges 
 
 ## Hosts
 
-The file format is host-neutral. `dsh-god-view` and `pi-god-view` read and write the same board files, so a Pi session and a DSH session in one repository see each other. Agent IDs are opaque: DSH uses `dsh-<hash>`, Pi uses `pi-<hash>`. The DSH coordination switch governs the DSH host only; the Pi extension writes presence and leases while it is installed. Presence, claim, change, and registry shapes are otherwise identical.
+The file format is host-neutral. `dsh-godview` and `pi-godview` read and write the same board files, so a Pi session and a DSH session in one repository see each other. Agent IDs are opaque: DSH uses `dsh-<hash>`, Pi uses `pi-<hash>`. The DSH coordination switch governs the DSH host only; the Pi extension writes presence and leases while it is installed. Presence, claim, change, and registry shapes are otherwise identical.
 
 ## Presence: agents/<id>.json
 
@@ -95,7 +95,7 @@ Change file:
   "sessionId": "session-demo-0001",
   "sessionTitle": "DSH 多 agent 协作插件设计",
   "intent": "timeline: claim/release observability",
-  "paths": ["packages/dsh-god-view/lib/client.js", "packages/godview/lib/store.js"],
+  "paths": ["packages/dsh-godview/lib/client.js", "packages/godview/lib/store.js"],
   "state": "claimed | done | expired",
   "auto": false,
   "summary": "turn ended | released | lease expired",
@@ -108,7 +108,7 @@ Change file:
       "at": 1793280396000,
       "agent": "dsh-demo-agent",
       "agentName": "parallel builder",
-      "path": "packages/dsh-god-view/lib/client.js",
+      "path": "packages/dsh-godview/lib/client.js",
       "intent": "timeline: claim/release observability"
     },
     {
@@ -116,7 +116,7 @@ Change file:
       "at": 1793280399000,
       "agent": "dsh-demo-agent",
       "agentName": "parallel builder",
-      "path": "packages/dsh-god-view/lib/client.js",
+      "path": "packages/dsh-godview/lib/client.js",
       "summary": "turn ended"
     }
   ]
@@ -202,7 +202,7 @@ GET /projects reads the union of the host's known roots and this index, then com
 | GET    | /coordination     | -       | enabled, trackedSessions, roots |
 | POST   | /coordination     | enabled | flip the switch                 |
 
-All routes live under the fixed prefix `/plugins/dsh-god-view/api` — the same constant the client hardcodes; it is deliberately not configurable. `GET /` serves the same snapshot as `/state`.
+All routes live under the fixed prefix `/plugins/dsh-godview/api` — the same constant the client hardcodes; it is deliberately not configurable. `GET /` serves the same snapshot as `/state`.
 
 /state also returns `coordination: { enabled, trackedSessions, roots }`. It returns the 30 most recent changes plus every change that still has a live lease, so an old lease keeps its Gantt bar. A POST body must be sent as `application/json`; any other content type is rejected before parsing.
 

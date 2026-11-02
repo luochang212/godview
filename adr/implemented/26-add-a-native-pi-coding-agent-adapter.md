@@ -9,14 +9,14 @@ created: 2026-11-02
 commit: 1c65718
 paths:
   - package.json
-  - packages/pi-god-view/package.json
-  - packages/pi-god-view/extensions/pi-god-view.js
-  - packages/pi-god-view/lib/session.js
-  - packages/pi-god-view/lib/tools.js
-  - packages/pi-god-view/lib/guard.js
-  - packages/pi-god-view/test/pi-god-view.test.mjs
-  - packages/pi-god-view/README.md
-  - packages/pi-god-view/README.en.md
+  - packages/pi-godview/package.json
+  - packages/pi-godview/extensions/pi-godview.js
+  - packages/pi-godview/lib/session.js
+  - packages/pi-godview/lib/tools.js
+  - packages/pi-godview/lib/guard.js
+  - packages/pi-godview/test/pi-godview.test.mjs
+  - packages/pi-godview/README.md
+  - packages/pi-godview/README.en.md
   - .changeset/config.json
   - AGENTS.md
   - README.md
@@ -37,7 +37,7 @@ second host adapter would create two sources of truth and two incompatible board
 
 ## Decision
 
-Add `packages/pi-god-view` as a third public workspace package. It is a native Pi
+Add `packages/pi-godview` as a third public workspace package. It is a native Pi
 extension, not a browser app and not a DSH bundle:
 
 - The extension entry is declared through `pi.extensions` and the package carries
@@ -59,8 +59,8 @@ extension, not a browser app and not a DSH bundle:
   repository, refreshed every 2.5 seconds. v1 has no browser panel, project rail,
   Gantt, or coordination switch. `/godview off` hides the widget only; the
   extension coordinates while it is installed.
-- `pi-god-view` joins the fixed changeset group with `godview` and
-  `dsh-god-view`. Its registry dependency on `godview` is the same `^0.1.0` line
+- `pi-godview` joins the fixed changeset group with `godview` and
+  `dsh-godview`. Its registry dependency on `godview` is the same `^0.1.0` line
   the DSH adapter uses, so the two hosts render one board rather than two.
 
 ## Alternatives considered
@@ -68,7 +68,7 @@ extension, not a browser app and not a DSH bundle:
 - Reuse the DSH host and browser client inside Pi: rejected because the host
   needs Cordis and a DSH profile, and the client is a browser bundle. It would
   pull a large host dependency tree into Pi and still would not fit the TUI.
-- Fork the store into `pi-god-view`: rejected because presence, claims, changes,
+- Fork the store into `pi-godview`: rejected because presence, claims, changes,
   and timelines would diverge. The shared `.dsh/parallel/` format is the point of
   the core split in ADR 25.
 - Deliver a browser panel through `pi-web` or Pi RPC first: rejected for v1
@@ -84,14 +84,14 @@ extension, not a browser app and not a DSH bundle:
 
 ### Verification
 
-- `npm run test -w pi-god-view` passes seven tests: presence start/stop, focus
+- `npm run test -w pi-godview` passes seven tests: presence start/stop, focus
   from a prompt, conflicting write denial, auto-claim on a free path, the three
   tools, panel lines, extension registration, and the package manifest.
 - `npm test` passes all three workspace suites, and `npm run lint` passes.
 - The package declares `pi.extensions` and the `pi-package` keyword, depends on
   `godview@^0.1.0`, and has no DSH, Cordis, React, or browser import.
 - `node --check` passes for the extension, session, tools, guard, and test files.
-- `npm pack --workspace pi-god-view` produced eight files with the extension,
+- `npm pack --workspace pi-godview` produced eight files with the extension,
   three lib modules, both READMEs, LICENSE, and package.json. A temporary npm
   project installed the tarball, resolved `godview@0.1.0`, and loaded the
   extension; it registered the three tools and `/godview`.

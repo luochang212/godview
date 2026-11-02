@@ -4,13 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import * as S from 'godview';
-import plugin from '../extensions/pi-god-view.js';
+import plugin from '../extensions/pi-godview.js';
 import { installGuard } from '../lib/guard.js';
 import { PiBoard } from '../lib/session.js';
 import { createTools } from '../lib/tools.js';
 
 function fixture(id, suffix = '') {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-god-view-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-godview-'));
   fs.mkdirSync(path.join(root, '.git'));
   const ctx = {
     cwd: root,
@@ -227,7 +227,7 @@ test('a session start survives an unwritable board directory', () => {
 });
 
 test('a session outside a repository does not create a board', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-god-view-norepo-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-godview-norepo-'));
   const ctx = {
     cwd: root,
     sessionManager: { getSessionId: () => 'norepo', getSessionName: () => 'session-norepo' },
@@ -370,9 +370,9 @@ test('extension registers three tools, the guard, and /godview', () => {
 
 test('package manifest exposes a pi extension and the pi-package keyword', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  assert.equal(pkg.name, 'pi-god-view');
+  assert.equal(pkg.name, 'pi-godview');
   assert.equal(pkg.version, '0.1.0');
   assert.ok(pkg.keywords.includes('pi-package'));
-  assert.deepEqual(pkg.pi.extensions, ['./extensions/pi-god-view.js']);
+  assert.deepEqual(pkg.pi.extensions, ['./extensions/pi-godview.js']);
   assert.equal(pkg.dependencies.godview, '^0.1.0');
 });

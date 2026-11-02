@@ -6,7 +6,7 @@ raised-by: human
 decided-by: human
 created: 2026-10-31
 commit: "6408670"
-paths: [packages/godview/lib/store.js, packages/dsh-god-view/lib/index.js, packages/dsh-god-view/lib/client.js, docs/protocol.md, AGENTS.md, README.md, README.en.md, packages/godview/test/store.test.mjs, packages/dsh-god-view/test/host-smoke.mjs]
+paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/dsh-godview/lib/client.js, docs/protocol.md, AGENTS.md, README.md, README.en.md, packages/godview/test/store.test.mjs, packages/dsh-godview/test/host-smoke.mjs]
 ---
 
 # ADR: 23 Drop the board protocol version

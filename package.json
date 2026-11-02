@@ -1,5 +1,5 @@
 {
-  "name": "dsh-god-view-repo",
+  "name": "godview-repo",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,8 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm run test -w godview && npm run test -w dsh-god-view && npm run test -w pi-god-view",
-    "host:smoke": "npm run host:smoke -w dsh-god-view",
+    "test": "npm run test -w godview && npm run test -w dsh-godview && npm run test -w pi-godview",
+    "host:smoke": "npm run host:smoke -w dsh-godview",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

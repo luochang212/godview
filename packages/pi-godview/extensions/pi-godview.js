@@ -1,5 +1,5 @@
 /**
- * pi-god-view: a native TUI adapter for the godview parallel-agent board.
+ * pi-godview: a native TUI adapter for the godview parallel-agent board.
  *
  * It keeps the generic godview store as the source of truth and only adapts
  * Pi's session lifecycle, tools, tool-call guard, and TUI widget.

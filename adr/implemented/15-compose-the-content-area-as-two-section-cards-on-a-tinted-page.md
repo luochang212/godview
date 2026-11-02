@@ -5,7 +5,7 @@ description: Read when changing the content area's surfaces. Those surfaces are 
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-locale.test.mjs]
+paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
 # ADR: 15 Compose the content area as two section cards on a tinted page

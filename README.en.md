@@ -5,15 +5,15 @@
 
 # God's Eye View
 
-**dsh-god-view** · a read-only DSH board for parallel agents
+**godview** · a read-only coordination board for parallel agents (DSH and Pi adapters)
 
 <p>
   <img src="https://img.shields.io/badge/version-0.1.0-0e7490?style=flat-square" alt="version" />
-  <img src="https://img.shields.io/badge/DSH-plugin-0e7490?style=flat-square" alt="DSH plugin" />
+  <img src="https://img.shields.io/badge/godview-0e7490?style=flat-square" alt="godview" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
-  <a href="https://github.com/luochang212/dsh-god-view/actions/workflows/ci.yml"><img src="https://github.com/luochang212/dsh-god-view/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://luochang212.github.io/dsh-god-view/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
+  <a href="https://github.com/luochang212/godview/actions/workflows/ci.yml"><img src="https://github.com/luochang212/godview/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://luochang212.github.io/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
 </p>
 
 **Let multiple agents in one repository see each other, avoid editing the same file at the same time, and leave a reviewable occupancy timeline.**
@@ -24,7 +24,7 @@ It is not a chat tool and not a human control panel. It is a read-only coordinat
 - which file is currently held, and by whom (a file lease);
 - when it was claimed, when it was released, and by whom (a claim/release timeline).
 
-The repository is an npm workspace: `packages/godview` is the generic core (store, CLI, protocol); `packages/dsh-god-view` is the DSH adapter (host, client, bundle); `packages/pi-god-view` is the native TUI adapter for the Pi coding agent.
+The repository is an npm workspace: `packages/godview` is the generic core (store, CLI, protocol); `packages/dsh-godview` is the DSH adapter (host, client, bundle); `packages/pi-godview` is the native TUI adapter for the Pi coding agent.
 
 ## 🔌 On by default, off whenever you want
 
@@ -114,10 +114,10 @@ Below 700px of panel width the shell stacks: the rail becomes a horizontal, scro
 The package declares `dsh.bundle`, so DSH's plugin command installs it and activates its bundle layer:
 
 ```sh
-dsh plugin --profile desktop add dsh-god-view
+dsh plugin --profile desktop add dsh-godview
 ```
 
-For local source development, do not use `add /path/to/packages/dsh-god-view`: the adapter depends on the registry version of `godview`. Use the symlink path below, or publish `godview` first.
+For local source development, do not use `add /path/to/packages/dsh-godview`: the adapter depends on the registry version of `godview`. Use the symlink path below, or publish `godview` first.
 
 In the Desktop app, install through **Settings → Plugins** instead of guessing the profile name on the command line.
 
@@ -127,8 +127,8 @@ The bundle carries the default configuration, so there is usually nothing to cha
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000
@@ -146,33 +146,33 @@ Every project tracked by the plugin on this DSH enters the global project index;
 
 ### Hot reload during development (optional)
 
-To edit code and see client changes on refresh, install through a symlink and add the patch row by hand; this path skips the bundle layer and still needs a host restart after `packages/dsh-god-view/lib/index.js` changes. Run `npm install` at the repository root first so the workspace links `godview` into the root `node_modules`:
+To edit code and see client changes on refresh, install through a symlink and add the patch row by hand; this path skips the bundle layer and still needs a host restart after `packages/dsh-godview/lib/index.js` changes. Run `npm install` at the repository root first so the workspace links `godview` into the root `node_modules`:
 
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-god-view/packages/dsh-god-view "$PROFILE/node_modules/dsh-god-view"
+ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
 ```
 
 Do not add this row when the bundle is already installed.
 
 ## 🥧 Pi coding agent
 
-The same board also has a Pi adapter in `packages/pi-god-view`: it reuses the `godview` store and `.dsh/parallel/`, and provides three `team_*` tools, a write/edit guard, and a read-only `/godview` TUI panel. It has no browser panel and no DSH or Cordis dependency.
+The same board also has a Pi adapter in `packages/pi-godview`: it reuses the `godview` store and `.dsh/parallel/`, and provides three `team_*` tools, a write/edit guard, and a read-only `/godview` TUI panel. It has no browser panel and no DSH or Cordis dependency.
 
 Try it from source:
 
 ```sh
-pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
+pi -e /absolute/path/to/dsh-godview/packages/pi-godview
 ```
 
-Pi and DSH can inspect the same repository board at the same time. See [packages/pi-god-view/README.en.md](packages/pi-god-view/README.en.md) for install, tool semantics, and boundaries.
+Pi and DSH can inspect the same repository board at the same time. See [packages/pi-godview/README.en.md](packages/pi-godview/README.en.md) for install, tool semantics, and boundaries.
 
 ## 🧰 Tools and CLI
 
@@ -225,7 +225,7 @@ It stores root / name / lastSeenAt only. Presence, claims, and timelines always 
 Key choices are recorded with [adr-kit](https://github.com/luochang212/adr-kit) under [adr/](adr/README.md). Records keep accruing, so this section keeps only the choices that shape the product; run `adrkit list` for the full set and each record's reasoning.
 
 - one board per repository; the global index only discovers and summarizes, never merges claims, and adds no cross-project lock (ADR 1).
-- the release is split into `godview` (generic store/CLI), `dsh-god-view` (DSH adapter), and `pi-god-view` (Pi TUI adapter) in one npm workspace; changesets keeps the three versions in a fixed group (ADR 25, ADR 26).
+- the release is split into `godview` (generic store/CLI), `dsh-godview` (DSH adapter), and `pi-godview` (Pi TUI adapter) in one npm workspace; changesets keeps the three versions in a fixed group (ADR 25, ADR 26).
 - no messages, inbox, or reply state; focus is a session property, and the panel is read-only apart from the coordination switch (ADR 2, 5).
 - occupancy is a claim/release timeline rendered as a per-file Gantt; the Gantt is the only timeline surface (ADR 3, 14).
 - coordination is on by default and a human turns it off from the topbar; off writes no board state (ADR 20, which supersedes ADR 9's default).
@@ -235,7 +235,7 @@ Run **adrkit list** at task start and read the relevant implemented records. Use
 
 ## 📚 Decision archive
 
-The full archive is published on GitHub Pages: https://luochang212.github.io/dsh-god-view/
+The full archive is published on GitHub Pages: https://luochang212.github.io/godview/
 
 It is generated from the records in `adr/`, with Folio and Signal editions in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it only on pushes that touch site/, adr/, the manifests, or the workflow itself (manual dispatch also works); the generated HTML and index are not committed.
 
@@ -271,9 +271,9 @@ There is no build step. The browser bundle is loaded directly by the DSH module 
 
 ```sh
 npm test                                   # all three workspace test suites
-npm run test -w pi-god-view                # Pi lifecycle / tools / guard / panel tests
+npm run test -w pi-godview                # Pi lifecycle / tools / guard / panel tests
 npm run host:smoke                         # tools / write guard / /projects / /state / /coordination
-node packages/dsh-god-view/test/ui-flow.cjs # read-only UI + the coordination switch
+node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the coordination switch
 ```
 
 The UI test requires the desktop DSH host, Playwright, and the local desktop auth cookie. It asserts zero inputs, exactly one coordination switch, at least one active project row, a Gantt for the selected project, and no console errors; fields such as HAS_SESSION are printed probes, not assertions.

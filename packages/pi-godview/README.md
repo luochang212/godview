@@ -1,4 +1,4 @@
-# pi-god-view
+# pi-godview
 
 给并行 agent 一个上帝视角：谁在做什么、谁占着哪个文件、什么时候释放。Pi coding agent 适配器，原生 TUI，不依赖 DSH 或浏览器。
 
@@ -7,13 +7,13 @@
 ## 安装
 
 ```sh
-pi install npm:pi-god-view
+pi install npm:pi-godview
 ```
 
 重启 Pi 或重新加载扩展后生效。本地开发可以直接指向包目录：
 
 ```sh
-pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
+pi -e /absolute/path/to/dsh-godview/packages/pi-godview
 ```
 
 ## 它做什么
@@ -59,8 +59,8 @@ pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
 
 ```sh
 npm install
-npm run test -w pi-god-view
-node --check packages/pi-god-view/extensions/pi-god-view.js
+npm run test -w pi-godview
+node --check packages/pi-godview/extensions/pi-godview.js
 ```
 
 ## License

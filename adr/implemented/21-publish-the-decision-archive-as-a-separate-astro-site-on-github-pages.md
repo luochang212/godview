@@ -19,7 +19,7 @@ The repository's decisions were readable only through the CLI or as raw Markdown
 
 The archive lives in its own private Astro project under `site/`. The plugin package keeps its dependency-free runtime.
 
-`site/scripts/build-archive.mjs` runs before `astro dev` and `astro build`. It generates the adr-kit atlas four times, once for each theme and language pair (`folio` and `signal`, Chinese and English), writes them to `site/public/decisions/`, and writes `site/src/data/decisions.json` from the record frontmatter and headings. Astro renders one landing page at the Pages base path `/dsh-god-view/` and copies the atlas pages as static files.
+`site/scripts/build-archive.mjs` runs before `astro dev` and `astro build`. It generates the adr-kit atlas four times, once for each theme and language pair (`folio` and `signal`, Chinese and English), writes them to `site/public/decisions/`, and writes `site/src/data/decisions.json` from the record frontmatter and headings. Astro renders one landing page at the Pages base path `/godview/` and copies the atlas pages as static files.
 
 The GitHub Pages workflow at `.github/workflows/site.yml` runs on pushes that touch `site/`, `adr/`, the dependency manifests, or the workflow. It installs the root dependencies, validates the records, installs the site dependencies, builds `site/dist`, and deploys that directory with `actions/deploy-pages`. Pages uses the GitHub Actions source, not a branch.
 

@@ -24,8 +24,8 @@ test('package is the DSH adapter, not the generic core', () => {
 
 test('bundle patch is shipped, targets this package, and has no config-as-code', () => {
   const patch = readFileSync(join(root, 'cordis.patch.yml'), 'utf8');
-  assert.match(patch, /id:\s*dsh-god-view/);
-  assert.match(patch, /name:\s*dsh-god-view/);
+  assert.match(patch, /id:\s*dsh-godview/);
+  assert.match(patch, /name:\s*dsh-godview/);
   assert.doesNotMatch(patch, /!!js/);
   assert.ok(pkg.files.includes('cordis.patch.yml'));
 });

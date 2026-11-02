@@ -5,7 +5,7 @@ description: Read when changing the coordination default, the switch semantics, 
 raised-by: human
 decided-by: human
 created: 2026-10-31
-paths: [packages/godview/lib/store.js, packages/dsh-god-view/lib/index.js, packages/godview/test/store.test.mjs, packages/dsh-god-view/test/host-smoke.mjs, docs/protocol.md]
+paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/godview/test/store.test.mjs, packages/dsh-godview/test/host-smoke.mjs, docs/protocol.md]
 ---
 
 # ADR: 20 Turn coordination on by default

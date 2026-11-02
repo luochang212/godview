@@ -33,11 +33,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luochang212/dsh-god-view.git",
+    "url": "git+https://github.com/luochang212/godview.git",
     "directory": "packages/godview"
   },
   "bugs": {
-    "url": "https://github.com/luochang212/dsh-god-view/issues"
+    "url": "https://github.com/luochang212/godview/issues"
   },
-  "homepage": "https://github.com/luochang212/dsh-god-view#readme"
+  "homepage": "https://github.com/luochang212/godview#readme"
 }

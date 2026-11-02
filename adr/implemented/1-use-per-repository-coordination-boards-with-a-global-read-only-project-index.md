@@ -5,7 +5,7 @@ description: Read when changing claim scope, project discovery, or any behavior 
 raised-by: agent
 decided-by: human
 created: 2026-10-30
-paths: [packages/godview/lib/store.js, packages/dsh-god-view/lib/index.js, packages/dsh-god-view/lib/client.js]
+paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/dsh-godview/lib/client.js]
 ---
 
 # ADR: 1 Use per-repository coordination boards with a global read-only project index

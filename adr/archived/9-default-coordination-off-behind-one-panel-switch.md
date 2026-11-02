@@ -6,7 +6,7 @@ raised-by: human
 decided-by: human
 created: 2026-10-30
 commit: 0a5ca5e
-paths: [packages/dsh-god-view/lib/index.js, packages/dsh-god-view/lib/client.js, packages/godview/lib/store.js, packages/dsh-god-view/test/host-smoke.mjs, packages/dsh-god-view/test/ui-flow.cjs]
+paths: [packages/dsh-godview/lib/index.js, packages/dsh-godview/lib/client.js, packages/godview/lib/store.js, packages/dsh-godview/test/host-smoke.mjs, packages/dsh-godview/test/ui-flow.cjs]
 superseded-by: 20
 archived: 2026-10-31
 archive-reason: coordination is on by default (ADR 20); this record still documents what a switched-off host does

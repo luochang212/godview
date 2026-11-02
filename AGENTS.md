@@ -2,7 +2,7 @@
 
 ## What this repository is
 
-A generic board core, a DSH (DeepSeek Harness) plugin, and a Pi coding-agent extension for parallel agents working in one or more repositories. The repository is an npm workspace: `packages/godview` is the generic core (store, CLI, protocol); `packages/dsh-god-view` is the DSH adapter (host, client, bundle); `packages/pi-god-view` is the native TUI adapter for the Pi coding agent.
+godview is a per-repository coordination board for parallel agents working in one or more repositories: a generic core, a DSH (DeepSeek Harness) adapter, and a Pi coding-agent adapter. The repository is an npm workspace: `packages/godview` is the generic core (store, CLI, protocol); `packages/dsh-godview` is the DSH adapter (host, client, bundle); `packages/pi-godview` is the native TUI adapter for the Pi coding agent.
 
 It has exactly three jobs:
 
@@ -28,32 +28,32 @@ Read README.md (Chinese) or README.en.md (English) and docs/protocol.md before c
 - The rail is a list and nothing else: no caption, no count, no footer. Per-project numbers live on the rows; there is no panel-level total. The rail must reach the bottom of the panel; do not let it float or stop after the last project row.
 - The Gantt is the only timeline surface in the panel. Exact times come from the bar tooltip; the full event record lives in the CLI. Do not add an event list under the Gantt. See [ADR 14](adr/implemented/14-show-the-gantt-only-and-move-exact-times-into-the-bar-tooltip.md).
 
-The browser-panel rules in this section describe `dsh-god-view`. `pi-god-view` v1 is TUI-only: it uses the same board, the same three tools, and the same write/edit guard, exposes a read-only `/godview` widget, and has no browser panel, project rail, Gantt, or coordination switch. It coordinates while the extension is installed; `/godview off` only hides the widget. See [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md).
+The browser-panel rules in this section describe `dsh-godview`. `pi-godview` v1 is TUI-only: it uses the same board, the same three tools, and the same write/edit guard, exposes a read-only `/godview` widget, and has no browser panel, project rail, Gantt, or coordination switch. It coordinates while the extension is installed; `/godview off` only hides the widget. See [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md).
 
 ## Architecture
 
 ### Files
 
-| Path                                              | Responsibility                                                                                                                             |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| packages/godview/lib/store.js                     | Shared file format and all local persistence. Source of truth for presence, claims, changes, timeline, project summaries, global registry. |
-| packages/dsh-god-view/lib/index.js                | DSH host plugin. Lifecycle, tools, write guard, prompt context, HTTP routes, project discovery.                                            |
-| packages/dsh-god-view/lib/client.js               | Browser bundle loaded through window.**ModuleLoader**. Read-only project rail, sessions, Gantt.                                            |
-| packages/pi-god-view/extensions/pi-god-view.js    | Pi extension entry. Session lifecycle, tool registration, write/edit guard, and the TUI panel command.                                     |
-| packages/pi-god-view/lib/session.js               | Pi session to board agent adapter: presence, heartbeat, claims, status, roster, panel lines.                                               |
-| packages/pi-god-view/test/pi-god-view.test.mjs    | Pi lifecycle, tools, guard, panel, extension registration, and package manifest tests.                                                     |
-| packages/godview/bin/godview.mjs                  | Dependency-free CLI over the same store.                                                                                                   |
-| packages/godview/test/store.test.mjs              | Store, timeline, registry, concurrency, CLI tests.                                                                                         |
-| packages/dsh-god-view/test/host-smoke.mjs         | Host lifecycle, dormant/enabled coordination, tools, write guard, HTTP routes.                                                             |
-| packages/dsh-god-view/test/client-locale.test.mjs | Client language source, live locale switching, and the coordination switch, driven through the real browser bundle.                        |
-| packages/dsh-god-view/test/ui-flow.cjs            | Read-only assertions and screenshots against the running desktop host.                                                                     |
-| packages/dsh-god-view/test/ui-lang.cjs            | Cold-start language regression against the running desktop host (delayed native locale bridge).                                            |
-| packages/dsh-god-view/test/ui-shot.cjs            | Screenshot helper.                                                                                                                         |
-| examples/cordis.patch.yml                         | Profile install example.                                                                                                                   |
-| docs/protocol.md                                  | Board file shapes, HTTP surface, compatibility notes.                                                                                      |
-| adr/                                              | Architecture decision records maintained with adr-kit. Read relevant implemented records before changing scoped behavior.                  |
-| site/                                             | Private Astro project that publishes the ADR archive to GitHub Pages. Generated atlas pages and src/data/decisions.json are not committed. |
-| .github/workflows/site.yml                        | Rebuilds the atlas and deploys site/dist to GitHub Pages on pushes that touch site/, adr/, or the manifests.                               |
+| Path                                             | Responsibility                                                                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| packages/godview/lib/store.js                    | Shared file format and all local persistence. Source of truth for presence, claims, changes, timeline, project summaries, global registry. |
+| packages/dsh-godview/lib/index.js                | DSH host plugin. Lifecycle, tools, write guard, prompt context, HTTP routes, project discovery.                                            |
+| packages/dsh-godview/lib/client.js               | Browser bundle loaded through window.**ModuleLoader**. Read-only project rail, sessions, Gantt.                                            |
+| packages/pi-godview/extensions/pi-godview.js     | Pi extension entry. Session lifecycle, tool registration, write/edit guard, and the TUI panel command.                                     |
+| packages/pi-godview/lib/session.js               | Pi session to board agent adapter: presence, heartbeat, claims, status, roster, panel lines.                                               |
+| packages/pi-godview/test/pi-godview.test.mjs     | Pi lifecycle, tools, guard, panel, extension registration, and package manifest tests.                                                     |
+| packages/godview/bin/godview.mjs                 | Dependency-free CLI over the same store.                                                                                                   |
+| packages/godview/test/store.test.mjs             | Store, timeline, registry, concurrency, CLI tests.                                                                                         |
+| packages/dsh-godview/test/host-smoke.mjs         | Host lifecycle, dormant/enabled coordination, tools, write guard, HTTP routes.                                                             |
+| packages/dsh-godview/test/client-locale.test.mjs | Client language source, live locale switching, and the coordination switch, driven through the real browser bundle.                        |
+| packages/dsh-godview/test/ui-flow.cjs            | Read-only assertions and screenshots against the running desktop host.                                                                     |
+| packages/dsh-godview/test/ui-lang.cjs            | Cold-start language regression against the running desktop host (delayed native locale bridge).                                            |
+| packages/dsh-godview/test/ui-shot.cjs            | Screenshot helper.                                                                                                                         |
+| examples/cordis.patch.yml                        | Profile install example.                                                                                                                   |
+| docs/protocol.md                                 | Board file shapes, HTTP surface, compatibility notes.                                                                                      |
+| adr/                                             | Architecture decision records maintained with adr-kit. Read relevant implemented records before changing scoped behavior.                  |
+| site/                                            | Private Astro project that publishes the ADR archive to GitHub Pages. Generated atlas pages and src/data/decisions.json are not committed. |
+| .github/workflows/site.yml                       | Rebuilds the atlas and deploys site/dist to GitHub Pages on pushes that touch site/, adr/, or the manifests.                               |
 
 ### Data layout
 
@@ -94,8 +94,8 @@ The registry is only a recent-project index. Each board remains the source of tr
 
 ### Browser plugin
 
-- packages/dsh-god-view/package.json declares dsh.client.platform = web.
-- packages/dsh-god-view/lib/client.js registers sidebar.panellist and main through ctx.slots.
+- packages/dsh-godview/package.json declares dsh.client.platform = web.
+- packages/dsh-godview/lib/client.js registers sidebar.panellist and main through ctx.slots.
 - The panel is mounted under the 上帝视角 / God's Eye sidebar entry.
 - The header carries the coordination switch (role=switch, data-coordination=on|off|unavailable). It POSTs /coordination and re-reads state; when the running host predates the route the switch renders disabled instead of breaking the panel.
 - UI language comes from the injected `locale` service (`ctx.locale.getSnapshot()` / `ctx.locale.subscribe`), never from a module-time read of `<html lang>`; see [ADR 8](adr/implemented/8-take-the-client-ui-language-from-the-host-locale-service.md). The sidebar label is registration metadata, so it is re-registered when the language changes.
@@ -140,30 +140,30 @@ Current implemented decisions cover:
 - [ADR 22](adr/implemented/22-keep-exactly-one-write-guard-policy-auto.md): the write guard has one policy; write/edit auto-claims and denies live conflicts.
 - [ADR 23](adr/implemented/23-drop-the-board-protocol-version.md): board files carry no protocol version; Git is the only version.
 - [ADR 24](adr/implemented/24-register-the-team-tools-only-while-coordination-is-on.md): the three team tools exist only while coordination is on; a dormant host registers none.
-- [ADR 25](adr/implemented/25-split-the-generic-board-core-and-the-dsh-plugin-into-an-npm-workspace-monorepo.md): the repo is an npm workspace with a generic `godview` core and a `dsh-god-view` adapter, versioned as one fixed group.
-- [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md): add a native TUI `pi-god-view` adapter that reuses the same store, three tools, and write/edit guard, and joins the fixed group.
+- [ADR 25](adr/implemented/25-split-the-generic-board-core-and-the-dsh-plugin-into-an-npm-workspace-monorepo.md): the repo is an npm workspace with a generic `godview` core and a `dsh-godview` adapter, versioned as one fixed group.
+- [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md): add a native TUI `pi-godview` adapter that reuses the same store, three tools, and write/edit guard, and joins the fixed group.
 
 When a choice is already shipped, use adrkit record with --raised-by and --decided-by. When it is not shipped, use adrkit propose, then adrkit implement after it ships. Do not edit a numbered record to change its choice; supersede or archive it with a new record. Run adrkit validate --all before finishing.
 
 ## Commands
 
 ```sh
-npm test                                  # all three workspace test suites
-npm run test -w godview                   # store/timeline/concurrency/CLI tests
-npm run test -w dsh-god-view              # DSH host and browser client tests
-npm run test -w pi-god-view               # Pi lifecycle/tools/guard/panel/package tests
-npm run host:smoke                        # host tools, guard, /projects, /state, /coordination
-node packages/dsh-god-view/test/ui-flow.cjs # read-only UI + the one switch; needs the desktop host + Playwright
-node packages/dsh-god-view/test/ui-lang.cjs # cold-start language regression; needs the desktop host + Playwright
-node packages/dsh-god-view/test/ui-shot.cjs # write ignored screenshots/01-panel.png and 03-dark.png
-npm run site:build                        # generate the atlas and build site/dist; run npm ci in site first
-npm run site:dev                          # local preview at the Pages base path
+npm test                                   # all three workspace test suites
+npm run test -w godview                    # store/timeline/concurrency/CLI tests
+npm run test -w dsh-godview                # DSH host and browser client tests
+npm run test -w pi-godview                 # Pi lifecycle/tools/guard/panel/package tests
+npm run host:smoke                         # host tools, guard, /projects, /state, /coordination
+node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the one switch; needs the desktop host + Playwright
+node packages/dsh-godview/test/ui-lang.cjs # cold-start language regression; needs the desktop host + Playwright
+node packages/dsh-godview/test/ui-shot.cjs # write ignored screenshots/01-panel.png and 03-dark.png
+npm run site:build                         # generate the atlas and build site/dist; run npm ci in site first
+npm run site:dev                           # local preview at the Pages base path
 ```
 
 Syntax check before finishing:
 
 ```sh
-for f in packages/godview/lib/store.js packages/dsh-god-view/lib/index.js packages/dsh-god-view/lib/client.js packages/godview/bin/godview.mjs packages/godview/test/store.test.mjs packages/dsh-god-view/test/host-smoke.mjs packages/pi-god-view/extensions/pi-god-view.js packages/pi-god-view/lib/session.js packages/pi-god-view/lib/tools.js packages/pi-god-view/lib/guard.js packages/pi-god-view/test/pi-god-view.test.mjs; do node --check "$f"; done
+for f in packages/godview/lib/store.js packages/dsh-godview/lib/index.js packages/dsh-godview/lib/client.js packages/godview/bin/godview.mjs packages/godview/test/store.test.mjs packages/dsh-godview/test/host-smoke.mjs packages/pi-godview/extensions/pi-godview.js packages/pi-godview/lib/session.js packages/pi-godview/lib/tools.js packages/pi-godview/lib/guard.js packages/pi-godview/test/pi-godview.test.mjs; do node --check "$f"; done
 ```
 
 The UI tests assume the desktop DSH GUI is already running at the configured URL, Playwright is available through the machine-level node_modules, and the desktop auth cookie is available. The helper scripts handle that environment; do not hardcode secrets into documentation or source.
@@ -185,15 +185,15 @@ Typical profile install:
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-god-view/packages/dsh-god-view "$PROFILE/node_modules/dsh-god-view"
+ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 Profile row:
 
 ```yaml
 - insert:
-    - id: dsh-god-view
-      name: dsh-god-view
+    - id: dsh-godview
+      name: dsh-godview
       config:
         heartbeatMs: 15000
         ttlMs: 60000
@@ -206,9 +206,9 @@ Keep root empty for multi-project monitoring. Set registryDir only if the defaul
 Pi adapter install:
 
 ```sh
-pi install npm:pi-god-view
+pi install npm:pi-godview
 # or from this workspace without publishing:
-pi -e /absolute/path/to/dsh-god-view/packages/pi-god-view
+pi -e /absolute/path/to/dsh-godview/packages/pi-godview
 ```
 
 The Pi extension writes the same board while it is installed; there is no DSH-style coordination switch in v1. `/godview` toggles its TUI widget.
@@ -237,7 +237,7 @@ Reloading:
 - The panel has exactly two controls, both chrome: the coordination switch (mode) and the rail toggle (layout). The UI test asserts one switch, one toggle, and zero inputs/selects/textareas. Never put a control inside the rail: collapsing it must not hide a decision.
 - Turning coordination off must release this host's auto leases; explicit leases are left to their owner. The switch never flips itself: it starts on (ADR 20) and only a human turns it off.
 - A dormant host must leave no board behind and no team tool in the catalog. If a change makes the plugin write to .dsh/parallel or register `team_*` while the switch is off, that is a bug. Tool registration follows the switch through `syncTools()`; a stale call after the flip still returns the off notice.
-- A page refresh is required after client changes; a host reload is required after packages/dsh-god-view/lib/index.js changes.
+- A page refresh is required after client changes; a host reload is required after packages/dsh-godview/lib/index.js changes.
 - There is no protocol version: Git is the only version. When a board file shape or an HTTP route changes, update docs/protocol.md and the tests in the same change.
 - Existing boards may carry fields the board no longer writes. Unknown fields are ignored; old message directories can be deleted. Presence/claim/change files without timelines get a fallback timeline from createdAt/releasedAt.
 - The global registry is capped at 200 entries. Clean up demo roots rather than leaving fake projects in it.
@@ -247,7 +247,7 @@ Reloading:
 ## Editing rules
 
 - Keep the runtime dependency-free. Store, host, CLI, and client should use only Node/browser built-ins plus the DSH/Cordis APIs already in use.
-- Keep the package boundary one-way: `packages/godview` must not import DSH, Cordis, Pi, React, or browser globals; `packages/dsh-god-view` may import `godview`; `packages/pi-god-view` may import `godview` but not DSH/Cordis or browser modules.
+- Keep the package boundary one-way: `packages/godview` must not import DSH, Cordis, Pi, React, or browser globals; `packages/dsh-godview` may import `godview`; `packages/pi-godview` may import `godview` but not DSH/Cordis or browser modules.
 - Keep the host/client split. The browser must not import packages/godview/lib/store.js or any Node module.
 - Use atomic JSON writes (writeJsonAtomic) for board files and the registry.
 - Prefer small, explicit functions over generic frameworks. This plugin intentionally has three concepts.
@@ -275,9 +275,9 @@ Reloading:
 Before reporting completion:
 
 1. node --check passes for every changed .js/.mjs file.
-2. npm run test -w godview and npm run test -w pi-god-view pass.
+2. npm run test -w godview and npm run test -w pi-godview pass.
 3. npm run host:smoke passes.
-4. node packages/dsh-god-view/test/ui-flow.cjs reports CONTROLS 0, SWITCHES 1, HAS_PROJECTS true, and no console errors. It also asserts one rail toggle and that the rail collapses to zero and restores. When it also prints ACTIVE_ROWS true, HAS_TIMELINE must be true; with no active project the blank page renders instead. When it prints SWITCH_STATE unavailable, the running host predates the coordination route: restart the host and rerun before calling the UI verified.
+4. node packages/dsh-godview/test/ui-flow.cjs reports CONTROLS 0, SWITCHES 1, HAS_PROJECTS true, and no console errors. It also asserts one rail toggle and that the rail collapses to zero and restores. When it also prints ACTIVE_ROWS true, HAS_TIMELINE must be true; with no active project the blank page renders instead. When it prints SWITCH_STATE unavailable, the running host predates the coordination route: restart the host and rerun before calling the UI verified.
 5. node packages/godview/bin/godview.mjs claims reports no active claims, or every remaining claim is intentional and explained.
 6. Screenshots are refreshed when UI changed.
 7. README.md, README.en.md, and docs/protocol.md reflect the final behavior.
