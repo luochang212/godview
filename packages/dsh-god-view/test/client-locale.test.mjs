@@ -164,6 +164,12 @@ test('client language follows the host locale, not the stale document default', 
   assert.equal(plugin.panelTitle(), '上帝视角');
 });
 
+test('an unresolved host locale does not overwrite the document fallback', () => {
+  const plugin = loadPlugin({ documentLang: 'zh-CN', activeLocale: '' });
+  plugin.exports.apply(plugin.ctx);
+  assert.equal(plugin.panelTitle(), '上帝视角', 'empty active locale is unknown, not English');
+});
+
 test('client declares the locale service it reads', () => {
   const plugin = loadPlugin({ documentLang: 'zh-CN', activeLocale: 'zh' });
   assert.ok(Array.isArray(plugin.exports.inject), 'plugin declares injected services');

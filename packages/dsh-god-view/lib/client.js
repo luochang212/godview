@@ -292,8 +292,14 @@ window.__ModuleLoader__.load({
       const [switching, setSwitching] = React.useState(false);
       const requestId = React.useRef(0);
       const selectedRef = React.useRef('');
+      const inflight = React.useRef(false);
 
       const load = React.useCallback(async (quiet, wantedRoot) => {
+        // A poll that takes longer than the 2.5s interval must not invalidate
+        // itself forever. Skip the next quiet tick while a request is in flight;
+        // a user action still supersedes and runs immediately.
+        if (quiet && inflight.current) return;
+        inflight.current = true;
         const id = ++requestId.current;
         if (!quiet) setLoading(true);
         try {
@@ -341,7 +347,10 @@ window.__ModuleLoader__.load({
           if (id !== requestId.current) return;
           setError(caught && caught.message ? caught.message : String(caught));
         } finally {
-          if (id === requestId.current) setLoading(false);
+          if (id === requestId.current) {
+            inflight.current = false;
+            setLoading(false);
+          }
         }
       }, []);
 
@@ -827,7 +836,7 @@ window.__ModuleLoader__.load({
           'aria-label': railOpen ? L('收起项目栏', 'Hide project rail') : L('展开项目栏', 'Show project rail'),
           title: railOpen ? L('收起项目栏', 'Hide project rail') : L('展开项目栏', 'Show project rail'),
           'aria-expanded': railOpen ? 'true' : 'false',
-          'aria-controls': 'pt-rail',
+          'aria-controls': railOpen ? 'pt-rail' : undefined,
           onClick: () => {
             const next = !railOpen;
             setRailOpen(next);
@@ -997,6 +1006,9 @@ window.__ModuleLoader__.load({
       };
       const syncLanguage = () => {
         const active = String(ctx.locale.getSnapshot().active || '').toLowerCase();
+        // An unresolved bridge is unknown, not English. Keep the document
+        // fallback until the host locale service reports a real language.
+        if (!active) return;
         setChinese(active.indexOf('zh') === 0);
         if (unregisterEntry) mountEntry();
       };
