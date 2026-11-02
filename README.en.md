@@ -97,7 +97,7 @@ One read-only screen rendered as a full-bleed app shell (no page padding):
 
 - **Project rail (right, 264px, full height, collapsible to zero)**: the collapse choice is kept in localStorage across reloads. It is one list and nothing else. There is no caption, no count, and no footer. A project is listed only when it has a working or blocked session, a live lease, or real activity within the last 30 minutes; an open session whose only sign of life is the host heartbeat is not active. Each row shows the status dot, working and blocked sessions, claims, active changes, and last activity. The dot breathes only while a session is working; blocked is red, claimed is amber, and a recent-but-idle board is grey. Motion stops under reduced-motion.
 - **Topbar (56px)**: the selected project's name and repository path on the left; on the right the coordination switch in the host's own spec (36x20, brand colour when on, 2px focus ring). A 28x28 rail toggle is pinned to the panel's top-right corner: over the rail's top edge when open, over the topbar's right end when closed, in exactly the same place, so one spot opens and closes.
-- **Content**: scrolls independently and holds the sessions and the claim Gantt, composed as two section cards directly on the host's bg-base. Cards use the host elevation token (0.5px hairline stroke plus a soft shadow) and a 12px radius; each header sits inside its card and rows are separated by hairlines. Bars expose a positioned tooltip on hover or keyboard focus with file, actor, start/end, duration, and intent/summary; the full event record stays in the CLI (`dsh-god-view changes`).
+- **Content**: scrolls independently and holds the sessions and the claim Gantt, composed as two section cards directly on the host's bg-base. Cards use the host elevation token (0.5px hairline stroke plus a soft shadow) and a 12px radius; each header sits inside its card and rows are separated by hairlines. Bars expose a positioned tooltip on hover or keyboard focus with file, actor, start/end, duration, and intent/summary; the full event record stays in the CLI (`godview changes`).
 - **When nothing is active**: the page is one quiet blank state. It shows a low-opacity glyph and a single line (no recent activity yet; projects appear once a session works here or claims a file; with coordination off it points at the switch). No empty sections, empty Gantt, or dashed placeholders, so the page can be read and left at a glance.
 - **No inputs**: no composer, no message box, no reply/release button. Project rows are navigation buttons; the panel has only two chrome controls. One is the coordination switch (mode), and the other is the rail toggle (layout).
 
@@ -237,7 +237,7 @@ Run **adrkit list** at task start and read the relevant implemented records. Use
 
 The full archive is published on GitHub Pages: https://luochang212.github.io/dsh-god-view/
 
-It is generated from the records in `adr/`, with Folio and Signal editions in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it on every push; the generated HTML and index are not committed.
+It is generated from the records in `adr/`, with Folio and Signal editions in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it only on pushes that touch site/, adr/, the manifests, or the workflow itself (manual dispatch also works); the generated HTML and index are not committed.
 
 Local preview:
 
@@ -257,6 +257,9 @@ npm run dev
 | ttlMs             | 90000           | Presence TTL                                                      |
 | autoClaimTtlMs    | 600000          | Auto-claim TTL                                                    |
 | releaseAutoOnIdle | true            | Release auto claims when the turn ends                            |
+| namePrefix        | agent           | Prefix for auto-generated agent names                             |
+| prompt            | true            | Inject the parallel-team context into prompts                     |
+| maxPromptPeers    | 8               | Maximum peer sessions listed in the prompt context                |
 
 Writes and edits are auto-claimed; a live claim by another agent denies the write. The board and the agents' prompt context always show the current leases. The write guard covers write/edit only. Shell redirection through bash or run_code is outside it.
 
@@ -265,7 +268,8 @@ Writes and edits are auto-claimed; a live claim by another agent denies the writ
 There is no build step. The browser bundle is loaded directly by the DSH module loader.
 
 ```sh
-npm test                                   # both workspace suites
+npm test                                   # all three workspace test suites
+npm run test -w pi-god-view                # Pi lifecycle / tools / guard / panel tests
 npm run host:smoke                         # tools / write guard / /projects / /state / /coordination
 node packages/dsh-god-view/test/ui-flow.cjs # read-only UI + the coordination switch
 ```

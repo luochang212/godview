@@ -10,8 +10,6 @@ This is the Pi adapter. The generic board store, protocol, and CLI live in [`god
 pi install npm:pi-god-view
 ```
 
-Until the first 0.1.0 release is on npm, use the local path below; the npm command becomes available after publishing.
-
 Restart Pi or reload extensions. For local development, point Pi at the package directory:
 
 ```sh
@@ -34,7 +32,7 @@ Each repository has its own board, so work in one repo never blocks another. Cla
 | `team_roster` | Read agents, focus, live claims, and active/recent changes for this repository        |
 | `team_claim`  | Claim, release, or list exact paths                                                   |
 
-The model auto-claims before a write. Explicit `team_claim` is for planned work, review leases, or early release. Idle releases automatic leases; explicit leases remain until released or their TTL expires.
+The model auto-claims before a write. Explicit `team_claim` is for planned work, review leases, or early release. Idle releases automatic leases; explicit leases remain until released or their TTL expires. Release requires at least one path; a release with no paths is an error.
 
 ## TUI panel
 
@@ -45,7 +43,7 @@ The model auto-claims before a write. Explicit `team_claim` is for planned work,
 /godview status
 ```
 
-The panel refreshes every 2.5 seconds and is read-only: active sessions, focus, live claims, and recent changes for the current repository. v1 does not include the DSH browser panel's project rail, Gantt, or coordination switch.
+The panel refreshes every 2.5 seconds and is read-only: sessions, focus, live claims, and recent changes for the current repository. v1 does not include the DSH browser panel's project rail, Gantt, or coordination switch.
 
 > The Pi adapter keeps coordination on while the extension is enabled. `/godview off` only hides the panel; it does not release leases or remove tools. Remove the extension when you do not want coordination.
 

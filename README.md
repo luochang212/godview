@@ -97,7 +97,7 @@ claim 是精确到文件路径的，不支持目录或 glob。
 
 - **右侧项目栏**：264px 全高，只有一列活跃项目。这一列没有标题、没有计数、没有底部统计；折叠状态记在 localStorage，重载后保持。只列出最近 30 分钟有活动、有进行中/受阻会话，或有文件占用的项目；只有宿主心跳、30 分钟没活动的会话不再算活跃。每行显示状态灯、进行中会话数、受阻数、占用数、变更数和最后活动时间。状态灯：进行中呼吸、受阻红色、仅占用琥珀、仅最近活跃灰色；reduced-motion 下关闭。
 - **顶部 bar**：56px，左侧是当前项目名和仓库路径，右侧是宿主规格的协作开关（36×20、打开为品牌色、2px 焦点环）。折叠按钮固定在整个面板的右上角（28×28、面板图标）：展开时压在侧栏右上方，收起时落在顶栏右端，位置完全不变，所以同一个点可以连续开关。
-- **内容区**：独立滚动，两张分区卡片（会话、占用甘特图）直接放在宿主的 bg-base 上；卡片用宿主的 elevation token（0.5px 发丝描边 + 极轻投影）、12px 圆角，表头在卡内、行间用发丝线分隔。甘特条支持 hover / 键盘 focus 的定位 tooltip，直接显示文件、持有者、起止时间、持续时长和 intent/summary；完整事件记录留在 CLI（`dsh-god-view changes`）里。
+- **内容区**：独立滚动，两张分区卡片（会话、占用甘特图）直接放在宿主的 bg-base 上；卡片用宿主的 elevation token（0.5px 发丝描边 + 极轻投影）、12px 圆角，表头在卡内、行间用发丝线分隔。甘特条支持 hover / 键盘 focus 的定位 tooltip，直接显示文件、持有者、起止时间、持续时长和 intent/summary；完整事件记录留在 CLI（`godview changes`）里。
 - **没有活跃项目时**：整页是一个安静的空状态，由一个淡图标和一句说明组成（最近还没有活动；有会话工作或占用文件后项目会出现在右侧；协作关闭时提示打开顶栏开关）。不出现空的 section、空甘特图或虚线占位框，方便一眼看清后直接切走。
 - **没有输入框**：没有 composer，没有消息框，没有“回复/释放”按钮。项目行是导航按钮；面板只有协作开关和折叠按钮两个控件。前者管模式，后者管界面。
 
@@ -237,7 +237,7 @@ godview leave --id <id>
 
 完整档案发布在 GitHub Pages：https://luochang212.github.io/dsh-god-view/
 
-它由 `adr/` 里的记录生成，提供 Folio 和 Signal 两种排版，各有中英文版本。每次推送后由 [site.yml](.github/workflows/site.yml) 重新构建，生成的 HTML 和索引不提交。
+它由 `adr/` 里的记录生成，提供 Folio 和 Signal 两种排版，各有中英文版本。只有推送到 main 且改动涉及 site/、adr/、依赖清单或 workflow 本身时，[site.yml](.github/workflows/site.yml) 才重新构建并部署（也可以在 Actions 里手动触发）；生成的 HTML 和索引不提交。
 
 本地预览：
 
@@ -257,6 +257,9 @@ npm run dev
 | ttlMs             | 90000           | presence TTL                            |
 | autoClaimTtlMs    | 600000          | auto claim 的 TTL                       |
 | releaseAutoOnIdle | true            | 回合结束后释放 auto claim               |
+| namePrefix        | agent           | agent 名默认前缀                        |
+| prompt            | true            | 是否把并行团队上下文写进 prompt         |
+| maxPromptPeers    | 8               | prompt 上下文最多列出的同伴会话数       |
 
 write/edit 自动 claim，与他人的活跃 claim 冲突时拒绝写入；面板与 agent 上下文始终展示当前租约。write guard 只覆盖 write/edit；bash 或 run_code 里的 shell 重定向不在保护范围内。
 
@@ -265,7 +268,8 @@ write/edit 自动 claim，与他人的活跃 claim 冲突时拒绝写入；面�
 无需构建，浏览器端由 DSH 的 module loader 直接加载。
 
 ```sh
-npm test                                   # both workspace suites
+npm test                                   # all three workspace test suites
+npm run test -w pi-god-view                # Pi lifecycle / tools / guard / panel tests
 npm run host:smoke                         # tools / write guard / /projects / /state / /coordination
 node packages/dsh-god-view/test/ui-flow.cjs # read-only UI + the coordination switch
 ```

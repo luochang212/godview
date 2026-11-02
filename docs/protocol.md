@@ -52,7 +52,7 @@ The file format is host-neutral. `dsh-god-view` and `pi-god-view` read and write
 }
 ```
 
-`lastAction` and `files` (most recent first, capped) describe the session's latest tool use; `finishedAt` is set once the status becomes `done`, `pid`/`hostname`/`cwd` identify the writing process. All are advisory except `status`.
+`lastAction` and `files` (most recent first, capped) describe the session's latest tool use (the Pi adapter records lifecycle events such as prompt, idle, and the stop reason instead of tool calls); `finishedAt` is set once the status becomes `done`, `pid`/`hostname`/`cwd` identify the writing process. All are advisory except `status`.
 
 Focus is a current property, not a message. It has no reply state. Heartbeats renew it while the agent is tracked; stale presence is flagged, hidden from the panel's session list, and omitted from team_roster unless `include_stale` is true. `heartbeatAt` + `ttlMs` prove only that the host process is alive; `updatedAt` is the last real activity (a user/subagent prompt, a turn change, a tool result, or team_status). The heartbeat is never treated as activity. `done` is the wire state for a closed session; the panel/CLI display it as `ended`.
 
@@ -93,6 +93,7 @@ Change file:
   "intent": "timeline: claim/release observability",
   "paths": ["packages/dsh-god-view/lib/client.js", "packages/godview/lib/store.js"],
   "state": "claimed | done | expired",
+  "auto": false,
   "summary": "turn ended | released | lease expired",
   "createdAt": 1793280396000,
   "updatedAt": 1793280399000,
@@ -194,6 +195,8 @@ GET /projects reads the union of the host's known roots and this index, then com
 | GET    | /state?root=<abs> | -       | agents, claims, changes, stats  |
 | GET    | /coordination     | -       | enabled, trackedSessions, roots |
 | POST   | /coordination     | enabled | flip the switch                 |
+
+All routes live under the fixed prefix `/plugins/dsh-god-view/api` — the same constant the client hardcodes; it is deliberately not configurable. `GET /` serves the same snapshot as `/state`.
 
 /state also returns `coordination: { enabled, trackedSessions, roots }`. A POST body must be sent as `application/json`; any other content type is rejected before parsing.
 
