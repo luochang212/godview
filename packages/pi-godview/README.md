@@ -13,7 +13,7 @@ pi install npm:pi-godview
 重启 Pi 或重新加载扩展后生效。本地开发可以直接指向包目录：
 
 ```sh
-pi -e /absolute/path/to/dsh-godview/packages/pi-godview
+pi -e /absolute/path/to/godview/packages/pi-godview
 ```
 
 ## 它做什么

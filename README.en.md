@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
   <a href="https://github.com/luochang212/godview/actions/workflows/ci.yml"><img src="https://github.com/luochang212/godview/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://luochang212.github.io/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
+  <a href="https://www.luochang.ink/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
 </p>
 
 **Let multiple agents in one repository see each other, avoid editing the same file at the same time, and leave a reviewable occupancy timeline.**
@@ -151,7 +151,7 @@ To edit code and see client changes on refresh, install through a symlink and ad
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
+ln -sfn /absolute/path/to/godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 ```yaml
@@ -169,7 +169,7 @@ The same board also has a Pi adapter in `packages/pi-godview`: it reuses the `go
 Try it from source:
 
 ```sh
-pi -e /absolute/path/to/dsh-godview/packages/pi-godview
+pi -e /absolute/path/to/godview/packages/pi-godview
 ```
 
 Pi and DSH can inspect the same repository board at the same time. See [packages/pi-godview/README.en.md](packages/pi-godview/README.en.md) for install, tool semantics, and boundaries.
@@ -235,7 +235,7 @@ Run **adrkit list** at task start and read the relevant implemented records. Use
 
 ## 📚 Decision archive
 
-The full archive is published on GitHub Pages: https://luochang212.github.io/godview/
+The full archive is published on GitHub Pages: https://www.luochang.ink/godview/
 
 It is generated from the records in `adr/`, with Folio and Signal editions in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it only on pushes that touch site/, adr/, the manifests, or the workflow itself (manual dispatch also works); the generated HTML and index are not committed.
 

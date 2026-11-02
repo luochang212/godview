@@ -187,7 +187,7 @@ Typical profile install:
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
+ln -sfn /absolute/path/to/godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 Profile row:
@@ -210,7 +210,7 @@ Pi adapter install:
 ```sh
 pi install npm:pi-godview
 # or from this workspace without publishing:
-pi -e /absolute/path/to/dsh-godview/packages/pi-godview
+pi -e /absolute/path/to/godview/packages/pi-godview
 ```
 
 The Pi extension writes the same board while it is installed; there is no DSH-style coordination switch in v1. `/godview` toggles its TUI widget.

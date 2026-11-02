@@ -13,7 +13,7 @@ pi install npm:pi-godview
 Restart Pi or reload extensions. For local development, point Pi at the package directory:
 
 ```sh
-pi -e /absolute/path/to/dsh-godview/packages/pi-godview
+pi -e /absolute/path/to/godview/packages/pi-godview
 ```
 
 ## What it does

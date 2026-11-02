@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
   <a href="https://github.com/luochang212/godview/actions/workflows/ci.yml"><img src="https://github.com/luochang212/godview/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://luochang212.github.io/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
+  <a href="https://www.luochang.ink/godview/"><img src="https://img.shields.io/badge/ADR-archive-8a4b2a?style=flat-square" alt="ADR archive" /></a>
 </p>
 
 **让同一仓库里的多个 Agent 看得见彼此，不抢同一个文件，并且留下可回看的占用时间轴。**
@@ -151,7 +151,7 @@ root 留空即可。每个 Agent 会按自己的 session cwd 找到对应仓库�
 ```sh
 PROFILE="$HOME/.dsh/profiles/desktop"
 mkdir -p "$PROFILE/node_modules"
-ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
+ln -sfn /absolute/path/to/godview/packages/dsh-godview "$PROFILE/node_modules/dsh-godview"
 ```
 
 ```yaml
@@ -169,7 +169,7 @@ ln -sfn /absolute/path/to/dsh-godview/packages/dsh-godview "$PROFILE/node_module
 本地试用：
 
 ```sh
-pi -e /absolute/path/to/dsh-godview/packages/pi-godview
+pi -e /absolute/path/to/godview/packages/pi-godview
 ```
 
 Pi 与 DSH 可以同时查看同一仓库的 board。安装、工具语义和边界见 [packages/pi-godview/README.md](packages/pi-godview/README.md)。
@@ -235,7 +235,7 @@ godview leave --id <id>
 
 ## 📚 决策档案
 
-完整档案发布在 GitHub Pages：https://luochang212.github.io/godview/
+完整档案发布在 GitHub Pages：https://www.luochang.ink/godview/
 
 它由 `adr/` 里的记录生成，提供 Folio 和 Signal 两种排版，各有中英文版本。只有推送到 main 且改动涉及 site/、adr/、依赖清单或 workflow 本身时，[site.yml](.github/workflows/site.yml) 才重新构建并部署（也可以在 Actions 里手动触发）；生成的 HTML 和索引不提交。
 
