@@ -142,6 +142,7 @@ test('the three tools claim, list, release, and report status', async () => {
   );
   assert.match(status.content[0].text, /blocked/);
   assert.match(status.content[0].text, /blocked on tests/);
+  assert.match(status.content[0].text, /Other sessions:/);
 
   const claimed = await byName.team_claim.execute(
     'id',
@@ -161,8 +162,14 @@ test('the three tools claim, list, release, and report status', async () => {
   assert.match(released.content[0].text, /released src\/a\.js/);
   assert.equal(S.listClaims(root).length, 0);
 
+  board.claim(['src/auto-idle.js'], { auto: true, reason: 'auto' });
+  await byName.team_status.execute('id', { status: 'idle' }, null, null, {});
+  assert.equal(S.getClaim(root, 'src/auto-idle.js'), undefined, 'idle releases the auto lease');
+
   await byName.team_status.execute('id', { status: 'done' }, null, null, {});
   assert.equal(S.getAgent(root, board.id).status, 'done');
+  const doneRoster = await byName.team_roster.execute('id', {}, null, null, {});
+  assert.match(doneRoster.content[0].text, /Sessions: 0 listed/);
   board.stop('test');
   cleanup(root);
 });
@@ -178,6 +185,14 @@ test('heartbeat renews the leases of an active session', () => {
   board.heartbeat();
   const after = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.ok(after.expiresAt > Date.now() + 60_000, 'the active session renews its lease');
+  // A blocked session is still working and waiting to resume; it must keep
+  // renewing, not let the lease expire under it.
+  board.update({ status: 'blocked' });
+  const blockedBefore = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...blockedBefore, expiresAt: Date.now() + 10_000 }, null, 2));
+  board.heartbeat();
+  const blockedAfter = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(blockedAfter.expiresAt > Date.now() + 60_000, 'a blocked session renews its lease');
   // An idle session stops renewing so its leases age out to bound them.
   board.update({ status: 'idle' });
   const idleBefore = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -237,6 +252,46 @@ test('a blocked session keeps its leases when the turn settles', () => {
   board.agentSettled();
   assert.ok(S.getClaim(root, 'src/blocked-auto.js'), 'a blocked session keeps its leases');
   assert.equal(S.getAgent(root, board.id).status, 'blocked', 'the blocked status is kept');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('a done session stays done through settle', () => {
+  const { root, board } = makeBoard('done-settle');
+  board.update({ status: 'done' });
+  const before = S.getAgent(root, board.id);
+  assert.equal(before.status, 'done');
+  assert.ok(before.finishedAt);
+  board.agentSettled();
+  const after = S.getAgent(root, board.id);
+  assert.equal(after.status, 'done', 'settle does not rewrite done to idle');
+  assert.equal(after.finishedAt, before.finishedAt, 'the finish timestamp survives settle');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('team_claim resolves repository-relative paths from a subdirectory', () => {
+  const { root } = fixture('subdir');
+  const sub = path.join(root, 'packages', 'x');
+  fs.mkdirSync(sub, { recursive: true });
+  const ctx = {
+    cwd: sub,
+    sessionManager: {
+      getSessionId: () => 'subdir',
+      getSessionName: () => 'session-subdir',
+    },
+  };
+  const board = new PiBoard(ctx, {
+    registryDir: path.join(root, 'registry'),
+    heartbeatMs: 60_000,
+    ttlMs: 60_000,
+  });
+  board.start();
+  board.claim(['lib/session.js'], { reason: 'nested work' });
+  assert.ok(S.getClaim(root, 'lib/session.js'), 'the path is anchored at the repository root');
+  assert.equal(S.getClaim(root, 'packages/x/lib/session.js'), undefined, 'no phantom cwd-relative lease');
+  board.release(['lib/session.js']);
+  assert.equal(S.getClaim(root, 'lib/session.js'), undefined);
   board.stop('test');
   cleanup(root);
 });

@@ -19,7 +19,7 @@ export const PRUNE_MS = 6 * 60 * 60_000;
 const missingRepoWarned = new Set();
 
 function hasRepoMarker(root) {
-  return fs.existsSync(path.join(root, '.git')) || fs.existsSync(path.join(root, S.STORE_DIR, 'parallel'));
+  return fs.existsSync(path.join(root, '.git')) || S.hasBoard(root);
 }
 
 export function piAgentId(sessionId) {
@@ -165,7 +165,10 @@ export class PiBoard {
       // Renew this session's leases while its turn is active, like the DSH
       // host does; without this a long turn outlives its own lease. An idle
       // session stops renewing so its leases age out.
-      if ((this.presence && this.presence.status) === 'active') S.renewClaims(this.root, this.id);
+      const status = this.presence && this.presence.status;
+      // A blocked session is still working and is waiting to resume; it must
+      // keep its leases alive, exactly like the DSH host does.
+      if (status === 'active' || status === 'blocked') S.renewClaims(this.root, this.id);
       S.expireClaims(this.root);
       if (Date.now() - this.lastPruneAt >= PRUNE_MS) {
         this.lastPruneAt = Date.now();
@@ -223,10 +226,10 @@ export class PiBoard {
 
   agentSettled() {
     const current = this.presence || S.getAgent(this.root, this.id);
-    if (current && current.status === 'blocked') {
+    if (current && (current.status === 'blocked' || current.status === 'done')) {
       // A blocked session is still working: it keeps its leases and waits to
-      // be unblocked, matching the DSH host. Releasing here would let another
-      // agent take files the session is actively waiting to resume.
+      // be unblocked, matching the DSH host. A done session is closed and must
+      // not be rewritten to idle by the next settle.
       return;
     }
     this.setStatus('idle', { lastAction: 'idle' });
@@ -263,13 +266,14 @@ export class PiBoard {
     }
   }
 
-  repoRel(raw) {
-    const absolute = path.isAbsolute(String(raw)) ? path.resolve(String(raw)) : path.resolve(this.cwd, String(raw));
+  repoRel(raw, fromRoot = false) {
+    const base = fromRoot ? this.root : this.cwd;
+    const absolute = path.isAbsolute(String(raw)) ? path.resolve(String(raw)) : path.resolve(base, String(raw));
     return S.normalizeRepoPath(this.root, absolute);
   }
 
   claim(paths, options = {}) {
-    const rels = (paths || []).map((value) => this.repoRel(value));
+    const rels = (paths || []).map((value) => this.repoRel(value, true));
     const focus = (this.presence && this.presence.focus) || 'claim';
     const result = S.claimPaths(this.root, this.id, rels, {
       mode: options.mode === 'review' ? 'review' : 'edit',
@@ -285,7 +289,7 @@ export class PiBoard {
   }
 
   release(paths, summary = 'released') {
-    const rels = (paths || []).map((value) => this.repoRel(value));
+    const rels = (paths || []).map((value) => this.repoRel(value, true));
     const result = S.releasePaths(this.root, this.id, rels, { summary });
     this.presence = S.getAgent(this.root, this.id) || this.presence;
     return result;
@@ -361,7 +365,7 @@ export class PiBoard {
         (agent.status || 'idle') +
         (agent.focus ? ': ' + agent.focus : '') +
         '.',
-      'Active peers: ' +
+      'Other sessions: ' +
         (peers.length
           ? peers.map((item) => item.name + ' [' + item.status + '] ' + (item.focus || 'no focus')).join('; ')
           : 'none') +
@@ -376,16 +380,12 @@ export class PiBoard {
   }
 
   rosterText(includeStale = false) {
-    const agents = S.listAgents(this.root, { includeStale });
+    const agents = S.listAgents(this.root, { includeStale }).filter((agent) => agent.status !== 'done');
     const claims = S.listClaims(this.root);
+    const live = agents.filter((agent) => !agent.stale);
+    const running = live.filter((agent) => agent.status === 'active' || agent.status === 'blocked').length;
     const lines = ['# Pi godview - ' + path.basename(this.root) + ' (' + this.root + ')'];
-    lines.push(
-      'Agents: ' +
-        agents.length +
-        ' total, ' +
-        agents.filter((item) => !item.stale && item.status !== 'done').length +
-        ' active-ish.',
-    );
+    lines.push('Sessions: ' + agents.length + ' listed, ' + live.length + ' live, ' + running + ' running/waiting.');
     for (const agent of agents) {
       const state = agent.stale ? 'stale' : agent.status;
       lines.push(

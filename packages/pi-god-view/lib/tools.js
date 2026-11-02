@@ -94,6 +94,7 @@ export function createTools(getBoard) {
       }
       const updated = Object.keys(patch).length > 0 ? board.update(patch) : board.presence;
       if (params.status === 'done') board.releaseAll('status done');
+      else if (params.status === 'idle') board.releaseAutoClaims('status idle');
       return text(board.statusText(updated), {
         agent: board.id,
         status: updated ? updated.status : undefined,
@@ -105,7 +106,7 @@ export function createTools(getBoard) {
     name: 'team_roster',
     label: 'Team roster',
     description:
-      'Read the shared godview board: active and recently active agents, their focus, live file leases, and recent changes. Use this before claiming a file or when you need to know who is working where.',
+      'Read the shared godview board: live agents (idle included), their focus, live file leases, and recent changes. Ended agents are omitted. Use this before claiming a file or when you need to know who is around.',
     parameters: {
       type: 'object',
       properties: {
