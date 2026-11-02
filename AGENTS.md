@@ -142,6 +142,7 @@ Current implemented decisions cover:
 - [ADR 24](adr/implemented/24-register-the-team-tools-only-while-coordination-is-on.md): the three team tools exist only while coordination is on; a dormant host registers none.
 - [ADR 25](adr/implemented/25-split-the-generic-board-core-and-the-dsh-plugin-into-an-npm-workspace-monorepo.md): the repo is an npm workspace with a generic `godview` core and a `dsh-godview` adapter, versioned as one fixed group.
 - [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md): add a native TUI `pi-godview` adapter that reuses the same store, three tools, and write/edit guard, and joins the fixed group.
+- [ADR 27](adr/implemented/27-rename-the-project-to-godview-and-its-adapters-to-dsh-godview-and-pi-godview.md): the repository and packages are `godview`, `dsh-godview`, and `pi-godview`; the old adapter names are abandoned, not aliased.
 
 When a choice is already shipped, use adrkit record with --raised-by and --decided-by. When it is not shipped, use adrkit propose, then adrkit implement after it ships. Do not edit a numbered record to change its choice; supersede or archive it with a new record. Run adrkit validate --all before finishing.
 
