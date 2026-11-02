@@ -53,4 +53,4 @@ The change file is larger, and sessionTitle can be absent for CLI-created agents
 
 The board can now answer which conversation, what change, which files, and whether it was released. It still cannot prove the content of the change: done is a declared release, not a commit or diff. Adding commit or diff fields would be a separate decision.
 
-The identity fields are part of the protocol. Changing them requires a protocol bump, migration notes, and updated tests for old records that lack sessionTitle.
+The identity fields are part of the protocol. Changing them requires a protocol bump, migration notes, and updated tests for old records that lack sessionTitle. (repealed by ADR 23)

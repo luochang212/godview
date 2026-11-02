@@ -26,7 +26,7 @@ Auto leases are renewed while the owning agent is running and released when the 
 
 Explicit claims remain available for planned work and review. They use the same conflict rule but do not auto-release on idle; they require an explicit release or expire after their TTL. release accepts a summary. One agent has at most one active change; a new claim joins it, and a new task starts after the old change is released.
 
-The guard covers write/edit. It does not cover arbitrary shell edits, so a lease is a coordination signal, not a kernel lock. claimPolicy can be require, advisory, or off for environments that need different behavior.
+The guard covers write/edit. It does not cover arbitrary shell edits, so a lease is a coordination signal, not a kernel lock. claimPolicy can be require, advisory, or off for environments that need different behavior. (repealed by ADR 22)
 
 ## Alternatives considered
 

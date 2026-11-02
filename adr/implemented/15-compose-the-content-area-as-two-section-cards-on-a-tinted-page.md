@@ -10,6 +10,9 @@ paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-l
 
 # ADR: 15 Compose the content area as two section cards on a tinted page
 
+> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> (2026-10-31).** The two section cards with in-card headers and hairline rows remain; the tinted page and the rail's brand tile are gone — the page is the host's plain `bg-base` and the brand mark no longer appears in the rail.
+
 ## Problem
 
 After the event list went away (ADR 14) the content area held two things: the session list and the Gantt. Both were styled as their own bordered boxes. Every session row was a 1px outlined card, and the Gantt was another. Their section headings floated above them, outside anything. On a white page with no shadows, that read as a pile of outlined widgets rather than a composed screen, and the whiteness made the page feel unfinished even when it was full.

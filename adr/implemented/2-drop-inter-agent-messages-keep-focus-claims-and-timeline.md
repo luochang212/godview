@@ -12,6 +12,9 @@ paths: [packages/godview/lib/store.js, packages/dsh-god-view/lib/index.js, packa
 
 > **Amended by [ADR 23](23-drop-the-board-protocol-version.md):** the board no longer carries a protocol number, so the "Protocol 3" in this record is history, not a version to bump. The removal of messages stands.
 
+> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> (2026-10-31):** "Refresh is the only action button" no longer holds — there is no refresh button; the panel carries exactly two controls (the coordination switch and the rail toggle).
+
 ## Problem
 
 An earlier version added direct messages with needsReply, pending/read state, reply_to, a TTL, and an "Agent questions" section. The feature grew a second state machine beside the file leases: a message could be delivered, read, answered, expired, or left stale; the UI needed an inbox; and the panel needed a human-input story even though the core board is supposed to be agent-operated and read-only.

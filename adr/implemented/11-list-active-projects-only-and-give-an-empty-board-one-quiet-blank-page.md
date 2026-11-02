@@ -10,6 +10,9 @@ paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-l
 
 # ADR: 11 List active projects only, and give an empty board one quiet blank page
 
+> **Partly superseded by [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> (2026-10-31).** Active-only listing and the quiet blank page remain; the caption that counted the listed rows and the footer are gone — the rail is a bare list.
+
 ## Problem
 
 The rail listed every repository in the registry, grouped into Active and Idle. Most of those idle rows were boards with no presence, no lease, and no change at all. They existed only because a session had once been opened there. Opening one produced a page that was structurally complete and informationally empty: an empty Sessions box, an empty Gantt box, an empty details list. That is noise that invites a click and then repays it with nothing.
@@ -43,6 +46,6 @@ This supersedes three details of earlier records, without changing their decisio
 ## Consequences
 
 - A dormant install shows the blank page, not a repository list. The blank copy points at the switch, which is the only action available.
-- Finished work leaves the rail as soon as presence goes stale and no lease remains; its timeline is then reachable through the CLI (`dsh-god-view changes`), not the panel. Revisit this if reviewing finished work in the panel becomes a requirement.
+- Finished work leaves the rail as soon as presence goes stale and no lease remains; its timeline is then reachable through the CLI (`godview changes`), not the panel. Revisit this if reviewing finished work in the panel becomes a requirement.
 - The rail is usually short; the empty space below it now reads as calm rather than as a missing list.
 - Tests assert both rules: idle boards are filtered out of the rendered list, and an empty board renders `pt-blank` with zero sections.

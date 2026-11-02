@@ -10,6 +10,9 @@ paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/lib/index.js]
 
 # ADR: 5 Keep the board to one read-only screen and three concepts
 
+> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> (2026-10-31).** The single read-only screen and the three concepts stand, but "Refresh is the only action button" no longer holds: there is no refresh button, and the panel carries exactly two controls — the coordination switch and the rail toggle.
+
 ## Problem
 
 An earlier iteration tried to be a coordination console: seven message kinds, threads, per-message acknowledgements, an event feed, four tabs, statistics cards, and a setup tab. The user could not understand the UI at a glance, and the extra surfaces did not make file coordination or occupancy easier to see. They made the product look broader while making the core state harder to find.

@@ -36,5 +36,5 @@ This supersedes the "keep an exact-time detail list available under the details 
 
 - The content area now ends with the Gantt, which makes the page shorter and the single timeline the obvious thing to read.
 - Exact times are one hover or one tab-stop away, not scroll-and-expand away; screen-reader users get them from the focused bar.
-- The full event record is unchanged on disk and in the CLI (`dsh-god-view changes`), and the protocol is untouched.
+- The full event record is unchanged on disk and in the CLI (`godview changes`), and the protocol is untouched.
 - `test/client-locale.test.mjs` fails if `TimelineSection`, `事件明细`, or `pt-tl` styles come back, so the list cannot reappear silently.

@@ -10,6 +10,9 @@ paths: [packages/dsh-god-view/lib/client.js]
 
 # ADR: 13 Let the topbar carry only the coordination switch
 
+> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> (2026-10-31).** The topbar still carries only the switch, but the 34x20 self-drawn track described here was replaced by a copy of the host's own 36x20 Switch.
+
 ## Problem
 
 The topbar's right side held two things: a "live" indicator (a dot plus the word 实时, or 连接中 while the first fetch is in flight) and a coordination switch prefixed by the word 协作. Both restated information the page already carries:

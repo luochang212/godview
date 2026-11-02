@@ -10,6 +10,9 @@ paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/ui-flow.
 
 # ADR: 17 Put the project rail on the right, collapse it to zero, and borrow the host's chrome
 
+> **Partly superseded by [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> (2026-10-31).** The right-hand rail, the host chrome, and the collapse-to-zero toggle remain; ADR 19 strips the rail to a bare list — the header with its caption and count, the footer, and the selected-row brand marker are gone — and pins the toggle to the panel's corner instead of the topbar's edge.
+
 ## Problem
 
 The rail sat on the left, next to DSH's own left sidebar: two vertical lists competing for the same edge, and the board lost 232px to a rail that repeats what the host sidebar already names. The rail also opened with a brand block (a 36px tile and the words 上帝视角) even though the panel is already reached through the host's own sidebar entry. That showed the same identity twice, once in the host chrome and once inside the panel.
