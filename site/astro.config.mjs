@@ -1,18 +1,16 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 
+// The site publishes the dark atlas only. There are no Astro pages: the build
+// copies public/ (the generated atlas) to dist/, and the atlas itself is the
+// page at the base path root.
 export default defineConfig({
-  site: 'https://luochang212.github.io',
+  site: 'https://www.luochang.ink',
   base: '/godview',
   output: 'static',
   integrations: [
     sitemap({
-      customPages: [
-        'https://luochang212.github.io/godview/decisions/folio.zh.html',
-        'https://luochang212.github.io/godview/decisions/folio.en.html',
-        'https://luochang212.github.io/godview/decisions/signal.zh.html',
-        'https://luochang212.github.io/godview/decisions/signal.en.html',
-      ],
+      customPages: ['https://www.luochang.ink/godview/', 'https://www.luochang.ink/godview/decisions/signal.en.html'],
     }),
   ],
   build: { format: 'directory' },

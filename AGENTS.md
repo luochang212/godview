@@ -52,7 +52,7 @@ The browser-panel rules in this section describe `dsh-godview`. `pi-godview` v1 
 | examples/cordis.patch.yml                        | Profile install example.                                                                                                                   |
 | docs/protocol.md                                 | Board file shapes, HTTP surface, compatibility notes.                                                                                      |
 | adr/                                             | Architecture decision records maintained with adr-kit. Read relevant implemented records before changing scoped behavior.                  |
-| site/                                            | Private Astro project that publishes the ADR archive to GitHub Pages. Generated atlas pages and src/data/decisions.json are not committed. |
+| site/                                            | Private Astro build that publishes the dark adr-kit atlas to GitHub Pages at /godview/. Generated atlas HTML is not committed.             |
 | .github/workflows/site.yml                       | Rebuilds the atlas and deploys site/dist to GitHub Pages on pushes that touch site/, adr/, or the manifests.                               |
 
 ### Data layout
@@ -143,6 +143,7 @@ Current implemented decisions cover:
 - [ADR 25](adr/implemented/25-split-the-generic-board-core-and-the-dsh-plugin-into-an-npm-workspace-monorepo.md): the repo is an npm workspace with a generic `godview` core and a `dsh-godview` adapter, versioned as one fixed group.
 - [ADR 26](adr/implemented/26-add-a-native-pi-coding-agent-adapter.md): add a native TUI `pi-godview` adapter that reuses the same store, three tools, and write/edit guard, and joins the fixed group.
 - [ADR 27](adr/implemented/27-rename-the-project-to-godview-and-its-adapters-to-dsh-godview-and-pi-godview.md): the repository and packages are `godview`, `dsh-godview`, and `pi-godview`; the old adapter names are abandoned, not aliased.
+- [ADR 28](adr/implemented/28-publish-only-the-dark-atlas-at-the-site-root.md): the published archive is only the dark Signal atlas at `/godview/`; no landing page, no Folio edition, no theme choice.
 
 When a choice is already shipped, use adrkit record with --raised-by and --decided-by. When it is not shipped, use adrkit propose, then adrkit implement after it ships. Do not edit a numbered record to change its choice; supersede or archive it with a new record. Run adrkit validate --all before finishing.
 

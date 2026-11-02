@@ -42,3 +42,11 @@ Generated atlas HTML and `site/src/data/decisions.json` are not committed. Both 
 - The build depends on adr-kit's CLI output and on the `description`, `date`, and `paths` frontmatter fields. A record-format change requires updating `site/scripts/build-archive.mjs`.
 - The published atlas is pinned to the build commit. The atlas footer and record source links point at that commit.
 - `site/` is excluded from the npm `files` list, so the published package stays small.
+
+### Later changes
+
+**Amended by ADR 28:** the site publishes only the dark Signal atlas, with the
+Chinese edition copied to the base path root; the landing page, the Folio
+edition, and the theme choice are gone. The Astro-on-Pages pipeline, the
+separate dependency tree, and the rule that generated HTML is never committed
+still hold.

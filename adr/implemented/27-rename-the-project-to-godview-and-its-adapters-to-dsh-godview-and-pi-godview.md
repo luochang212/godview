@@ -20,7 +20,6 @@ paths:
   - examples/cordis.patch.yml
   - site/astro.config.mjs
   - site/scripts/build-archive.mjs
-  - site/src/layouts/Base.astro
   - README.md
   - README.en.md
   - AGENTS.md
