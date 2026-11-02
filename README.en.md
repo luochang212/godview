@@ -8,7 +8,7 @@
 **godview** · a read-only coordination board for parallel agents (DSH and Pi adapters)
 
 <p>
-  <img src="https://img.shields.io/badge/version-0.1.0-0e7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-0.2.0-0e7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/godview-0e7490?style=flat-square" alt="godview" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
@@ -117,7 +117,7 @@ The package declares `dsh.bundle`, so DSH's plugin command installs it and activ
 dsh plugin --profile desktop add dsh-godview
 ```
 
-For local source development, do not use `add /path/to/packages/dsh-godview`: the adapter depends on the registry version of `godview`. Use the symlink path below, or publish `godview` first.
+For local source development, do not use `add /path/to/packages/dsh-godview`: the adapter depends on the registry version of `godview`. Use the symlink path below; `godview` is on the registry as of 0.2.0.
 
 In the Desktop app, install through **Settings → Plugins** instead of guessing the profile name on the command line.
 

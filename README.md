@@ -8,7 +8,7 @@
 **godview** · 多 Agent 协作看板（DSH / Pi 适配器）
 
 <p>
-  <img src="https://img.shields.io/badge/version-0.1.0-0e7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-0.2.0-0e7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/godview-0e7490?style=flat-square" alt="godview" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-0e7490?style=flat-square" alt="node" />
   <img src="https://img.shields.io/badge/license-MIT-0e7490?style=flat-square" alt="license" />
@@ -117,7 +117,7 @@ claim 是精确到文件路径的，不支持目录或 glob。
 dsh plugin --profile desktop add dsh-godview
 ```
 
-本地源码开发不要用 `add /path/to/packages/dsh-godview`：适配层依赖 registry 上的 `godview`。用下面的 symlink 方式，或先发布 `godview`。
+本地源码开发不要用 `add /path/to/packages/dsh-godview`：适配层依赖 registry 上的 `godview`。用下面的 symlink 方式；registry 上的 `godview` 已随 0.2.0 发布。
 
 Desktop 应用请在 **Settings → Plugins** 里安装，不要用命令行猜 profile 名。
 

@@ -10,7 +10,7 @@ It has exactly three jobs:
 2. Lease files so two agents do not edit the same path at the same time.
 3. Show a claim/release timeline (who held which file, from when, until when).
 
-Version: 0.1.0. None of the packages has a build step; runtime is plain ESM JavaScript. The core and DSH packages require Node >= 20; the Pi adapter requires Node >= 22.19 because Pi itself does. The separate `site/` project builds the ADR archive with Astro.
+Version: 0.2.0. None of the packages has a build step; runtime is plain ESM JavaScript. The core and DSH packages require Node >= 20; the Pi adapter requires Node >= 22.19 because Pi itself does. The separate `site/` project builds the ADR archive with Astro.
 
 Read README.md (Chinese) or README.en.md (English) and docs/protocol.md before changing behavior.
 
