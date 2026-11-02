@@ -16,7 +16,7 @@ Read README.md (Chinese) or README.en.md (English) and docs/protocol.md before c
 
 ## Non-negotiable product shape
 
-- Coordination is on by default and only a human changes it. With the switch off the plugin is dormant: no board directory, no presence, no leases, no history, no prompt context, no write guard, and no `team_*` tools in the model's catalog. One switch in the panel header turns it off and on. See [ADR 20](adr/implemented/20-turn-coordination-on-by-default.md); it supersedes ADR 9's default.
+- Coordination is on by default and only a human changes it. With the switch off the plugin is dormant: it creates no board directory, writes no presence, takes no new leases, adds no history, installs no prompt context or write guard, and registers no `team_*` tools in the model's catalog. One switch in the panel header turns it off and on. See [ADR 20](adr/implemented/20-turn-coordination-on-by-default.md); it supersedes ADR 9's default.
 - The panel is read-only apart from that one switch. There is no data input and no refresh button; the panel polls by itself. Project rows are navigation buttons. Do not add a composer, message box, reply box, question queue, or human input.
 - There are no messages. There is no team_send, inbox, needsReply, read state, reply_to, message TTL, or "Agent questions" section. Do not reintroduce them without an explicit request.
 - Focus is a property of the current session at the current time. It is not a message and has no lifecycle.
@@ -227,7 +227,7 @@ Reloading:
 - Claims are exact paths. No directories or globs.
 - The write guard covers write/edit, not arbitrary bash or run_code shell edits.
 - Paths are normalized against the repository root. Never allow absolute paths outside the repo or .. escapes.
-- Timeline events are append-only per change. Claim, release, and expire events must include at, agentName, path, and intent/summary.
+- Timeline events are append-only per change, capped at 200 events. Claim, release, and expire events must include at, agentName, path, and intent/summary.
 - One active change per agent. A new claim joins the active change; release the old change before starting a new one.
 - Auto claims release on idle. Explicit claims need an explicit release or TTL expiry. If a claim looks stale, check whether the owning session is still running before forcing a release.
 - Focus and claims are separate. A file is not leased just because it appears in focus or files.

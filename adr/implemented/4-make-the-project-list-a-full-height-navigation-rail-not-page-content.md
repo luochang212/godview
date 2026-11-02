@@ -10,6 +10,14 @@ paths: [packages/dsh-god-view/lib/client.js]
 
 # ADR: 4 Make the project list a full-height navigation rail, not page content
 
+> **Partly superseded by [ADR 15](15-compose-the-content-area-as-two-section-cards-on-a-tinted-page.md),
+> [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md), and
+> [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> (2026-10-31).** The rail now sits on the right, collapses to zero, carries no
+> header/footer or per-project footer counts, and marks the selected row with the
+> host `bg-multi-select` fill instead of a left marker. Treat the shipped client
+> CSS as the reference for the narrow-screen layout.
+
 ## Problem
 
 The first multi-project UI stacked project cards above the selected project's Sessions and Gantt. With five projects, the cards consumed roughly a fifth of the viewport and pushed the Gantt below the fold. The cards also gave navigation the visual weight of content, and the rail looked floating because it ended after the last project even when the detail pane continued.

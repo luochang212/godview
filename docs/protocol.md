@@ -1,16 +1,20 @@
 # Parallel team board file format
 
-The board keeps three concepts: **presence**, **claims/changes**, and a **per-repository project board**. Messages are not part of it.
+The board keeps three concepts: **presence**, **claims**, and **changes**, stored on a per-repository project board. Messages are not part of it.
 
 ## Location
 
 ```text
 <repo>/.dsh/parallel/
   config.json
+  README.md
+  .gitignore
   agents/<agent-id>.json
   claims/<sha1(repo-relative-path)>.json
   changes/<change-id>.json
 ```
+
+`config.json` is also the board marker: a directory containing `.dsh/parallel` without it is not treated as a board (this keeps the global registry at `~/.dsh/parallel` from becoming a repository root).
 
 The global recent-project index is separate:
 
@@ -54,7 +58,7 @@ The file format is host-neutral. `dsh-god-view` and `pi-god-view` read and write
 
 `lastAction` and `files` (most recent first, capped) describe the session's latest tool use (the Pi adapter records lifecycle events such as prompt, idle, and the stop reason instead of tool calls); `finishedAt` is set once the status becomes `done`, `pid`/`hostname`/`cwd` identify the writing process. All are advisory except `status`.
 
-Focus is a current property, not a message. It has no reply state. Heartbeats renew it while the agent is tracked; stale presence is flagged, hidden from the panel's session list, and omitted from team_roster unless `include_stale` is true. `heartbeatAt` + `ttlMs` prove only that the host process is alive; `updatedAt` is the last real activity (a user/subagent prompt, a turn change, a tool result, or team_status). The heartbeat is never treated as activity. `done` is the wire state for a closed session; the panel/CLI display it as `ended`.
+Focus is a current property, not a message. It has no reply state. Heartbeats renew it while the agent is tracked; stale presence is flagged, hidden from the panel's session list, and omitted from team_roster unless `include_stale` is true. `heartbeatAt` + `ttlMs` prove only that the host process is alive; `updatedAt` is the last real activity (a user/subagent prompt, a turn change, a tool result, or team_status). The heartbeat is never treated as activity. `done` is the wire state for a closed session; the panel/CLI display it as `ended`, and team_roster omits it.
 
 ## Claims and changes
 
@@ -140,7 +144,7 @@ Coordination is on by default. The switch is a single global file in the registr
 - **On (default, or file missing/unreadable):** presence, leases, the guard, the timeline, the prompt context, and the three `team_*` tools apply as documented below.
 - **Off (`enabled: false`):** the host writes no board state. It creates no `.dsh/parallel`, no presence, no leases, no changes, and no prompt context, and it disposes the three `team_*` tools, so the model's catalog carries no team tool schema. The write guard allows everything. A call admitted before the flip (a stale tool reference) still returns the off notice instead of an unknown-tool error. Only in-memory session tracking, the project registry, and the panel entry continue, so the panel can still discover repositories and offer the switch; the rail itself lists only boards with a working/blocked session, a live lease, or activity within 30 minutes (ADR 11 and ADR 16).
 - Turning it off releases the automatic leases this host holds; recorded history stays readable but frozen. Exclusive leases owned by other processes are left to expire. Turning it back on backfills presence for tracked sessions and re-registers the tools.
-- A host notices a flip made by another process (or by another machine sharing the registry) on its next coordination check: its heartbeat, a write/edit, a team tool call, or `GET /coordination`. The tool catalog follows within one heartbeat, and the panel POST is immediate.
+- A host notices a flip made by another process (or by another machine sharing the registry) on its next coordination check: its heartbeat, a write/edit, a team tool call, or `GET /coordination`. It releases its own auto leases on the off transition, the tool catalog follows within one heartbeat, and the panel POST is immediate.
 - The switch never flips itself. A host that sees several sessions while off keeps that count internally and does not warn in the panel (ADR 18).
 - The switch governs the DSH host. The CLI writes the same board files directly and does not consult the switch, so a claim made through the CLI is visible to every host even while the switch is off. The Pi adapter does not read this switch; it coordinates while the extension is installed.
 
@@ -152,6 +156,8 @@ Step 0: the guard only runs while the coordination switch is on.
 2. deny if a live lease belongs to another agent;
 3. otherwise create an auto lease in the current change;
 4. release auto leases on idle; release all leases when the session is disposed.
+
+`team_claim` paths are different: they are always resolved against the repository root, even when the session was started in a subdirectory. Only the write/edit guard starts from the session cwd.
 
 There is one guard policy. Writes and edits are auto-claimed and live conflicts are denied; the panel and the agents' prompt context always show the current leases. Shell edits are outside the guard.
 
@@ -198,7 +204,7 @@ GET /projects reads the union of the host's known roots and this index, then com
 
 All routes live under the fixed prefix `/plugins/dsh-god-view/api` — the same constant the client hardcodes; it is deliberately not configurable. `GET /` serves the same snapshot as `/state`.
 
-/state also returns `coordination: { enabled, trackedSessions, roots }`. A POST body must be sent as `application/json`; any other content type is rejected before parsing.
+/state also returns `coordination: { enabled, trackedSessions, roots }`. It returns the 30 most recent changes plus every change that still has a live lease, so an old lease keeps its Gantt bar. A POST body must be sent as `application/json`; any other content type is rejected before parsing.
 
 The panel itself sends no board writes: reads serve the panel, and POST /coordination is the only write route. Serving a board through /state registers its root with the host, whose background heartbeat sweep may then clear that board's expired leases and close their changes — the same maintenance it runs for boards it tracks. The host writes through the store directly and the CLI uses the same files. Cross-origin requests are denied.
 

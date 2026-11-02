@@ -30,7 +30,7 @@ The repository is an npm workspace: `packages/godview` is the generic core (stor
 
 Coordination exists so parallel agents do not step on each other, so it is **on by default**: writes register leases and a file held by someone else is rejected.
 
-When you do not need it, turn the coordination switch off in the panel header. While it is off the plugin stays out of the agent's way: no board directory, no presence rows, no file leases, no write guard, no prompt context, and no `team_*` tools in the model's catalog. The panel entry, the switch route, and the global project index stay (the switch needs a home); apart from those, a single agent sees no effect.
+When you do not need it, turn the coordination switch off in the panel header. While it is off the plugin stays out of the agent's way: no board directory, no presence rows, no new file leases, no write guard, no prompt context, and no `team_*` tools in the model's catalog. Auto leases held by this host are released; explicit leases stay with their owner until they expire. The panel entry, the switch route, and the global project index stay (the switch needs a home); apart from those, a single agent sees no effect.
 
 - Turning it off releases the automatic leases this host holds and freezes the history instead of deleting it.
 - Turning it back on does not back-claim files already being edited; protection starts at the next write.
@@ -178,11 +178,11 @@ Pi and DSH can inspect the same repository board at the same time. See [packages
 
 While coordination is on, the model's catalog carries exactly these three tools (the switch takes them all out):
 
-| Tool            | Purpose                                                                          |
-| --------------- | -------------------------------------------------------------------------------- |
-| **team_status** | Update focus, status, plan, and files                                            |
-| **team_roster** | Read active agents, claims, and active/recent changes for the current repository |
-| **team_claim**  | Claim, release, or list paths; reason is the change intent or release summary    |
+| Tool            | Purpose                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **team_status** | Update focus, status, plan, and files                                                                            |
+| **team_roster** | Read live sessions (idle included, ended excluded), claims, and active/recent changes for the current repository |
+| **team_claim**  | Claim, release, or list paths; reason is the change intent or release summary                                    |
 
 The CLI is provided by the `godview` core. Installing the adapter brings the runtime dependency; install the command separately when needed:
 
@@ -253,13 +253,15 @@ npm run dev
 | ----------------- | --------------- | ----------------------------------------------------------------- |
 | root              | empty           | Optional forced repository. Empty means each session uses its cwd |
 | registryDir       | ~/.dsh/parallel | Directory for the global project index                            |
-| heartbeatMs       | 20000           | Presence renewal interval                                         |
-| ttlMs             | 90000           | Presence TTL                                                      |
+| heartbeatMs       | 15000           | Presence renewal interval (bundle override)                       |
+| ttlMs             | 60000           | Presence TTL (bundle override)                                    |
 | autoClaimTtlMs    | 600000          | Auto-claim TTL                                                    |
 | releaseAutoOnIdle | true            | Release auto claims when the turn ends                            |
 | namePrefix        | agent           | Prefix for auto-generated agent names                             |
 | prompt            | true            | Inject the parallel-team context into prompts                     |
 | maxPromptPeers    | 8               | Maximum peer sessions listed in the prompt context                |
+
+The code defaults for `heartbeatMs`/`ttlMs` are 20000/90000; the bundled example overrides them to the 15000/60000 shown here.
 
 Writes and edits are auto-claimed; a live claim by another agent denies the write. The board and the agents' prompt context always show the current leases. The write guard covers write/edit only. Shell redirection through bash or run_code is outside it.
 

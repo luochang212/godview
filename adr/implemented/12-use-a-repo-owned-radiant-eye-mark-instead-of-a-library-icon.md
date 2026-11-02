@@ -10,6 +10,10 @@ paths: [packages/dsh-god-view/lib/client.js, packages/dsh-god-view/test/client-l
 
 # ADR: 12 Use a repo-owned radiant-eye mark instead of a library icon
 
+> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> (2026-10-31).** The mark is no longer in the rail. It appears on the host sidebar
+> entry (18px) and on the blank page (26px); the rail carries no brand block.
+
 ## Problem
 
 The rail's brand tile borrowed lucide's `eye`. It worked, but it is the same glyph a thousand applications use, and it says "view" rather than "watch over everything, from above". The reference layout (ml-auto) gets its character from a single, well-chosen mark: lucide's `Lighthouse` at 22px inside an accent-tinted square. That character does not come from the decorative container.

@@ -30,7 +30,7 @@
 
 协作的价值是让并行的 Agent 不互相踩踏，所以它**默认是开的**：写入会自动登记占用，别人占着同一个文件时会被拒绝。
 
-不需要的时候，点面板右上角的协作开关关掉即可。关闭后插件不打扰 Agent：不建看板目录、不写 presence、不占用文件、不拦截写入、不往 prompt 里塞上下文，三个 `team_*` 工具也会从模型的工具表里撤掉，单 Agent 会话看不到它们。面板入口、开关接口和全局项目索引仍保留（开关总得有个地方）；除此之外，关闭状态对单 Agent 编辑没有可感知的影响。
+不需要的时候，点面板右上角的协作开关关掉即可。关闭后插件不打扰 Agent：不建看板目录、不写 presence、不新增文件占用、不拦截写入、不往 prompt 里塞上下文，三个 `team_*` 工具也会从模型的工具表里撤掉，单 Agent 会话看不到它们。已经存在的显式租约仍由 owner 留到到期；本机 auto 租约在关闭时释放。面板入口、开关接口和全局项目索引仍保留（开关总得有个地方）；除此之外，关闭状态对单 Agent 编辑没有可感知的影响。
 
 - 中途打开或关闭都可以：打开之前已在改的文件不会被补登记，保护从下一次写入开始。
 - 关闭会释放本机持有的自动占用，历史记录保留但不再更新。
@@ -178,11 +178,11 @@ Pi 与 DSH 可以同时查看同一仓库的 board。安装、工具语义和边
 
 协作开启时，模型的工具表里只有这三个工具（关闭后整张撤下）：
 
-| 工具            | 用途                                                               |
-| --------------- | ------------------------------------------------------------------ |
-| **team_status** | 更新 focus、status、plan、files                                    |
-| **team_roster** | 读取当前仓库的活跃 Agent、claim、进行中/最近 change                |
-| **team_claim**  | claim / release / list；reason 是 change intent 或 release summary |
+| 工具            | 用途                                                                    |
+| --------------- | ----------------------------------------------------------------------- |
+| **team_status** | 更新 focus、status、plan、files                                         |
+| **team_roster** | 读取当前仓库的存活会话（含空闲、不含已结束）、claim、进行中/最近 change |
+| **team_claim**  | claim / release / list；reason 是 change intent 或 release summary      |
 
 CLI 由核心包 `godview` 提供。安装适配层会带上运行时依赖；需要命令时单独安装：
 
@@ -253,13 +253,15 @@ npm run dev
 | ----------------- | --------------- | --------------------------------------- |
 | root              | 空              | 可选；空表示每个会话按 cwd 找自己的仓库 |
 | registryDir       | ~/.dsh/parallel | 全局项目索引目录                        |
-| heartbeatMs       | 20000           | presence 续租间隔                       |
-| ttlMs             | 90000           | presence TTL                            |
+| heartbeatMs       | 15000           | presence 续租间隔（bundle 覆盖值）      |
+| ttlMs             | 60000           | presence TTL（bundle 覆盖值）           |
 | autoClaimTtlMs    | 600000          | auto claim 的 TTL                       |
 | releaseAutoOnIdle | true            | 回合结束后释放 auto claim               |
 | namePrefix        | agent           | agent 名默认前缀                        |
 | prompt            | true            | 是否把并行团队上下文写进 prompt         |
 | maxPromptPeers    | 8               | prompt 上下文最多列出的同伴会话数       |
+
+`heartbeatMs`/`ttlMs` 的代码默认是 20000/90000；随包示例的 bundle 覆盖为表中的 15000/60000。
 
 write/edit 自动 claim，与他人的活跃 claim 冲突时拒绝写入；面板与 agent 上下文始终展示当前租约。write guard 只覆盖 write/edit；bash 或 run_code 里的 shell 重定向不在保护范围内。
 
