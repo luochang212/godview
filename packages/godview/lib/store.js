@@ -458,25 +458,29 @@ export function listChanges(root, options = {}) {
   changes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return changes.slice(0, limit).map((change) => {
     if (Array.isArray(change.timeline) && change.timeline.length > 0) return change;
-    const timeline = [
-      {
-        type: 'claim',
-        at: change.createdAt,
-        agent: change.agent,
-        agentName: change.agentName,
-        paths: change.paths,
-        intent: change.intent,
-      },
-    ];
+    const legacyPaths = Array.isArray(change.paths) ? change.paths : [];
+    // Legacy boards carry no timeline. Synthesize one event per path so the
+    // shape matches what claimPaths/releasePaths/expireClaims append (a
+    // singular "path", as documented in docs/protocol.md).
+    const timeline = legacyPaths.map((path) => ({
+      type: 'claim',
+      at: change.createdAt,
+      agent: change.agent,
+      agentName: change.agentName,
+      path,
+      intent: change.intent,
+    }));
     if (change.state !== 'claimed' && change.releasedAt) {
-      timeline.push({
-        type: change.state === 'expired' ? 'expire' : 'release',
-        at: change.releasedAt,
-        agent: change.agent,
-        agentName: change.agentName,
-        paths: change.paths,
-        summary: change.summary,
-      });
+      for (const path of legacyPaths) {
+        timeline.push({
+          type: change.state === 'expired' ? 'expire' : 'release',
+          at: change.releasedAt,
+          agent: change.agent,
+          agentName: change.agentName,
+          path,
+          summary: change.summary,
+        });
+      }
     }
     return { ...change, timeline };
   });
@@ -610,7 +614,10 @@ export function claimPaths(root, agentId, rawPaths, options = {}) {
       continue;
     }
     if (existing && existing.agent === agent.id) {
+      // Re-claiming an owned lease is a renewal (docs/protocol.md): keep the
+      // original createdAt and stamp renewedAt, like a heartbeat renewal does.
       next.createdAt = existing.createdAt || now;
+      next.renewedAt = now;
       writeJsonAtomic(file, next);
       claimed.push(next);
       continue;
@@ -725,7 +732,7 @@ export function releasePaths(root, agentId, rawPaths, options = {}) {
         type: 'release',
         at: now,
         agent: claim.agent,
-        agentName: options.actorName || agent.name,
+        agentName: options.actorName || claim.agentName || agent.name,
         path: claim.path,
         summary,
       });
@@ -801,12 +808,15 @@ export function renewClaims(root, agentId, options = {}) {
     if (options.autoOnly && !claim.auto) continue;
     if ((claim.expiresAt || 0) <= now) continue;
     const duration = Number(claim.ttlMs) > 0 ? Number(claim.ttlMs) : DEFAULT_CLAIM_TTL_MS;
-    const ttl = Math.min(4 * 60 * 60_000, Number(options.ttlMs) || duration);
-    writeJsonAtomic(path.join(p.claims, hash(claim.path) + '.json'), {
-      ...claim,
-      expiresAt: now + ttl,
-      renewedAt: now,
-    });
+    const ttl = Math.max(60_000, Math.min(4 * 60 * 60_000, Number(options.ttlMs) || duration));
+    // The listing above was read a moment ago. Re-read the lease file and renew
+    // only what is still exactly this claim: a concurrent release or a takeover
+    // by another agent wins over this renewal, and a vanished lease is not
+    // resurrected by a blind write to the hashed path.
+    const file = path.join(p.claims, hash(claim.path) + '.json');
+    const current = readJson(file);
+    if (!current || current.agent !== claim.agent || current.expiresAt !== claim.expiresAt) continue;
+    writeJsonAtomic(file, { ...current, expiresAt: now + ttl, renewedAt: now });
     count++;
   }
   return count;
@@ -875,15 +885,18 @@ export function projectSummary(root) {
   try {
     const snap = snapshot(root, { changeLimit: 30, create: false });
     const now = nowMs();
-    const liveAgents = snap.agents.filter((agent) => !agent.stale && agent.status !== 'done');
+    const counted = snap.agents.filter((agent) => agent.status !== 'done');
+    const liveAgents = counted.filter((agent) => !agent.stale);
     const working = liveAgents.filter((agent) => agent.status === 'active').length;
     const blocked = liveAgents.filter((agent) => agent.status === 'blocked').length;
     // Activity is what the conversation did, not that its host is still running:
     // updatedAt moves on prompts, turn changes, tool results, and team_status,
     // while the heartbeat does not. A session left open for hours must not look
-    // recently active just because its process still beats.
+    // recently active just because its process still beats. The heartbeat only
+    // filters presence signals (working/blocked); the last recorded activity of
+    // an agent whose host just died is still real activity and counts.
     let lastActivityAt = 0;
-    for (const agent of liveAgents) lastActivityAt = Math.max(lastActivityAt, agent.updatedAt || 0);
+    for (const agent of counted) lastActivityAt = Math.max(lastActivityAt, agent.updatedAt || 0);
     for (const claim of snap.claims) lastActivityAt = Math.max(lastActivityAt, claim.updatedAt || claim.createdAt || 0);
     for (const change of snap.changes) lastActivityAt = Math.max(lastActivityAt, change.updatedAt || 0);
     const recent = lastActivityAt > 0 && now - lastActivityAt <= ACTIVE_WINDOW_MS;

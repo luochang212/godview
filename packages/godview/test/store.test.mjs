@@ -53,6 +53,125 @@ test('claims conflict, release, and produce a claim/release timeline', () => {
   );
 });
 
+test('renewClaims does not resurrect a claim that was concurrently released', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/race.ts'], { auto: true });
+  const file = path.join(S.paths(root).claims, S.hash('src/race.ts') + '.json');
+  const realRead = fs.readFileSync;
+  let reads = 0;
+  fs.readFileSync = function (p, ...rest) {
+    const out = realRead.call(fs, p, ...rest);
+    if (String(p) === file && ++reads === 2) {
+      // The listing saw the lease; a concurrent releasePaths removes it right
+      // before the renewal re-checks the file it is about to overwrite.
+      fs.unlinkSync(file);
+      return Buffer.from('');
+    }
+    return out;
+  };
+  let renewed;
+  try {
+    renewed = S.renewClaims(root, 'a');
+  } finally {
+    fs.readFileSync = realRead;
+  }
+  assert.equal(renewed, 0, 'a vanished claim is not renewed');
+  assert.equal(fs.existsSync(file), false, 'a released claim is not resurrected by a renewal');
+});
+
+test('renewClaims does not stomp a claim another agent took over', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/take.ts'], { auto: true });
+  const file = path.join(S.paths(root).claims, S.hash('src/take.ts') + '.json');
+  const staleClaim = JSON.parse(fs.readFileSync(file, 'utf8'));
+  S.createAgent(root, { id: 'b', name: 'B' });
+  S.releasePaths(root, 'a', ['src/take.ts'], { summary: 'gone' });
+  S.claimPaths(root, 'b', ['src/take.ts'], { intent: 'mine now' });
+  const realRead = fs.readFileSync;
+  let served = false;
+  fs.readFileSync = function (p, ...rest) {
+    const out = realRead.call(fs, p, ...rest);
+    if (!served && String(p) === file) {
+      served = true; // renew's directory read still sees a's own (stale) claim
+      return Buffer.from(JSON.stringify(staleClaim, null, 2) + '\n');
+    }
+    return out;
+  };
+  let renewed;
+  try {
+    renewed = S.renewClaims(root, 'a');
+  } finally {
+    fs.readFileSync = realRead;
+  }
+  assert.equal(renewed, 0);
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(after.agent, 'b', 'the takeover owner keeps the lease');
+});
+
+test('backfilled timeline events carry the documented singular shape', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['legacy-a.ts', 'legacy-b.ts'], { intent: 'legacy' });
+  const change = S.getChange(root, S.listChanges(root)[0].id);
+  delete change.timeline;
+  fs.writeFileSync(path.join(S.paths(root).changes, change.id + '.json'), JSON.stringify(change));
+  const claimed = S.listChanges(root)[0];
+  const claimEvents = claimed.timeline.filter((event) => event.type === 'claim');
+  assert.equal(claimEvents.length, 2, 'the backfill writes one claim event per path');
+  for (const event of claimEvents) {
+    assert.equal(typeof event.path, 'string', 'backfilled claim events carry a singular path');
+    assert.ok(!('paths' in event), 'backfilled claim events carry no plural paths field');
+  }
+  S.releasePaths(root, 'a', ['legacy-a.ts', 'legacy-b.ts'], { summary: 'done' });
+  const released = S.getChange(root, change.id);
+  delete released.timeline;
+  fs.writeFileSync(path.join(S.paths(root).changes, change.id + '.json'), JSON.stringify(released));
+  const view = S.listChanges(root)[0];
+  const releaseEvents = view.timeline.filter((event) => event.type === 'release');
+  assert.equal(releaseEvents.length, 2);
+  for (const event of releaseEvents) assert.equal(typeof event.path, 'string');
+});
+
+test('a forced cross-agent release keeps the lease owner on the timeline', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.createAgent(root, { id: 'b', name: 'B' });
+  S.claimPaths(root, 'a', ['src/owned.ts'], { intent: 'planned' });
+  const result = S.releasePaths(root, 'b', ['src/owned.ts'], { force: true, summary: 'stale' });
+  assert.equal(result.released.length, 1);
+  const release = S.listChanges(root)[0].timeline.find((event) => event.type === 'release');
+  assert.equal(release.agent, 'a');
+  assert.equal(release.agentName, 'A', 'agentName identifies the lease owner, not the agent that forced the release');
+});
+
+test('a dead host does not erase the recent activity it recorded', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A', focus: 'work' });
+  const file = path.join(S.paths(root).agents, 'a.json');
+  const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+  body.heartbeatAt = Date.now() - 10 * 60_000; // the host is gone
+  body.updatedAt = Date.now() - 5 * 60_000; // its last real activity
+  fs.writeFileSync(file, JSON.stringify(body, null, 2));
+  const summary = S.projectSummary(root);
+  assert.equal(summary.lastActivityAt, body.updatedAt, 'lastActivityAt still counts the stale agent updatedAt');
+  assert.equal(summary.status, 'active', 'recent real activity keeps the board listed');
+  assert.equal(summary.working, 0, 'a dead host does not look like it is working');
+});
+
+test('re-claiming an owned lease is a renewal that stamps renewedAt', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/renew.ts'], { intent: 'one' });
+  const file = path.join(S.paths(root).claims, S.hash('src/renew.ts') + '.json');
+  const before = JSON.parse(fs.readFileSync(file, 'utf8'));
+  S.claimPaths(root, 'a', ['src/renew.ts'], { intent: 'two' });
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(after.createdAt, before.createdAt, 'the renewal keeps the original createdAt');
+  assert.ok(Number.isFinite(after.renewedAt), 'the renewal stamps renewedAt');
+});
+
 test('expired lease marks the change expired and appends an expire event', () => {
   const root = repo();
   S.createAgent(root, { id: 'a', name: 'A' });
