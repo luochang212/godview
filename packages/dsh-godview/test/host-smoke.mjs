@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import assert from 'node:assert/strict';
-import { apply } from '../lib/index.js';
+import { agentIdForSession, apply } from '../lib/index.js';
 import * as S from 'godview';
 
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'pt-host-'));
@@ -82,8 +82,8 @@ function makeAgent(id) {
 }
 const alice = makeAgent('session-alice-123456');
 const bob = makeAgent('session-bob-654321');
-const aliceId = S.agentIdForSession('session-alice-123456');
-const bobId = S.agentIdForSession('session-bob-654321');
+const aliceId = agentIdForSession('session-alice-123456');
+const bobId = agentIdForSession('session-bob-654321');
 
 // Default is on. A human turns it off from the panel switch; the off path below
 // is exercised explicitly so it keeps its assertions.
@@ -193,7 +193,7 @@ emit('agent/inbox/inserted', {
     content: [{ type: 'text', text: 'Investigate the guard race before editing. Then stop.' }],
   },
 });
-const carolPresence = S.getAgent(repo, S.agentIdForSession('session-carol-999999'));
+const carolPresence = S.getAgent(repo, agentIdForSession('session-carol-999999'));
 assert.ok(carolPresence);
 assert.match(carolPresence.focus, /Investigate the guard race/);
 
@@ -354,7 +354,7 @@ const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pt-host-nogit-'));
 const frank = makeAgent('session-frank-13579');
 frank.session.header.cwd = outside;
 emit('agent/status', { agent: frank, status: 'running' });
-const frankId = S.agentIdForSession('session-frank-13579');
+const frankId = agentIdForSession('session-frank-13579');
 assert.ok(S.getAgent(repo, frankId), 'config.root forces a session outside a repo onto the configured board');
 assert.equal(S.getAgent(outside, frankId), undefined, 'the session cwd gets no board');
 fs.rmSync(outside, { recursive: true, force: true });

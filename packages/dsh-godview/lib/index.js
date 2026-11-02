@@ -18,6 +18,13 @@ import * as S from 'godview';
 export const name = 'dsh-godview';
 export const inject = ['tools'];
 
+// Agent ids are opaque to the store (ADR 29); each host owns its prefix. The
+// DSH host and the CLI's `join --session` must derive the same id for one
+// session so both appear as one agent on the board.
+export function agentIdForSession(sessionId) {
+  return 'dsh-' + S.hash(sessionId).slice(0, 10);
+}
+
 const require = createRequire(import.meta.url);
 const CLI_PATH = path.join(path.dirname(require.resolve('godview/package.json')), 'bin', 'godview.mjs');
 // Fixed HTTP prefix. It is deliberately not configurable: the browser half
@@ -299,7 +306,7 @@ class TeamRuntime {
           try {
             const cwd = this.agentCwd(agent);
             const root = S.resolveRepoRoot(cwd);
-            const hadPresence = Boolean(S.getAgent(root, S.agentIdForSession(agent.session.id)));
+            const hadPresence = Boolean(S.getAgent(root, agentIdForSession(agent.session.id)));
             if (hadPresence || agent.status === 'running') this.track(agent);
           } catch (error) {
             this.warn(error);
@@ -498,10 +505,10 @@ class TeamRuntime {
     this.knownRoots.add(root);
     this.currentRoot = root;
     this.registerProject(root);
-    const id = S.agentIdForSession(sessionId);
+    const id = agentIdForSession(sessionId);
     const parentSession = agent.session.header && agent.session.header.parentSession;
     const role = parentSession ? 'subagent' : 'agent';
-    const parentId = parentSession ? S.agentIdForSession(parentSession) : undefined;
+    const parentId = parentSession ? agentIdForSession(parentSession) : undefined;
     // Dormant: keep the session in memory so the panel can offer the switch,
     // but write no board state and register no team tools until it is turned on.
     if (!this.coordinationEnabled()) {

@@ -46,10 +46,6 @@ export function safeId(value) {
     .slice(0, 80);
 }
 
-export function agentIdForSession(sessionId) {
-  return 'dsh-' + hash(sessionId).slice(0, 10);
-}
-
 export function paths(root) {
   const base = path.join(path.resolve(root), STORE_DIR);
   return {

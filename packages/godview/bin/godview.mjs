@@ -8,10 +8,10 @@
 import process from 'node:process';
 import {
   DEFAULT_CLAIM_TTL_MS,
-  agentIdForSession,
   claimPaths,
   createAgent,
   ensureStore,
+  hash,
   iso,
   listAgents,
   listClaims,
@@ -23,6 +23,13 @@ import {
   snapshot,
   updateAgent,
 } from '../lib/store.js';
+
+// `join --session` acts as a DSH session, so it derives the same dsh- id the
+// DSH host would give that session (ADR 29). The prefix lives with the hosts,
+// not in the store's API.
+function agentIdForSession(sessionId) {
+  return 'dsh-' + hash(sessionId).slice(0, 10);
+}
 
 const BOOL_OPTS = new Set(['json', 'help', 'stale', 'all', 'force']);
 const VALUE_OPTS = new Set([
