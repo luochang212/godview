@@ -5,6 +5,7 @@
  * that session to one board agent, keeps its heartbeat alive, and exposes the
  * small operations the three team tools and the TUI panel need.
  */
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as S from 'godview';
@@ -13,6 +14,13 @@ export const HEARTBEAT_MS = 15_000;
 export const TTL_MS = 60_000;
 export const AUTO_CLAIM_TTL_MS = 10 * 60_000;
 export const PANEL_REFRESH_MS = 2_500;
+export const PRUNE_MS = 6 * 60 * 60_000;
+
+const missingRepoWarned = new Set();
+
+function hasRepoMarker(root) {
+  return fs.existsSync(path.join(root, '.git')) || fs.existsSync(path.join(root, S.STORE_DIR, 'parallel'));
+}
 
 export function piAgentId(sessionId) {
   return 'pi-' + S.hash(String(sessionId || 'unknown')).slice(0, 10);
@@ -68,6 +76,7 @@ export class PiBoard {
     this.autoClaimTtlMs = Number(options.autoClaimTtlMs) > 0 ? Number(options.autoClaimTtlMs) : AUTO_CLAIM_TTL_MS;
     this.started = false;
     this.presence = null;
+    this.lastPruneAt = 0;
     this.heartbeatTimer = null;
     this.panelTimer = null;
     this.panelOn = false;
@@ -76,27 +85,47 @@ export class PiBoard {
 
   start() {
     if (this.started) this.stop('restart');
-    S.ensureStore(this.root, { create: true });
-    S.registerProject(this.registryDir, {
-      root: this.root,
-      name: path.basename(this.root),
-      lastSeenAt: Date.now(),
-    });
-    this.presence = S.createAgent(this.root, {
-      id: this.id,
-      name: this.sessionTitle,
-      role: 'pi',
-      status: 'active',
-      focus: 'starting',
-      sessionId: this.sessionId,
-      sessionTitle: this.sessionTitle,
-      cwd: this.cwd,
-      ttlMs: this.ttlMs,
-    });
-    this.started = true;
-    this.heartbeatTimer = setInterval(() => this.heartbeat(), this.heartbeatMs);
-    if (this.heartbeatTimer.unref) this.heartbeatTimer.unref();
-    this.heartbeat();
+    // Outside a repository there is no board to join; skipping keeps stray
+    // scratch directories out of every project index. An explicit options.root
+    // still forces a board, mirroring the DSH host's config.root override.
+    if (!this.options.root && !hasRepoMarker(this.root)) {
+      if (!missingRepoWarned.has(this.root)) {
+        missingRepoWarned.add(this.root);
+        console.warn(
+          '[pi-god-view] skipping board for non-repo directory ' + this.root + ' (set options.root to override)',
+        );
+      }
+      return this;
+    }
+    try {
+      S.ensureStore(this.root, { create: true });
+      S.registerProject(this.registryDir, {
+        root: this.root,
+        name: path.basename(this.root),
+        lastSeenAt: Date.now(),
+      });
+      this.presence = S.createAgent(this.root, {
+        id: this.id,
+        name: this.sessionTitle,
+        role: 'pi',
+        status: 'active',
+        focus: 'starting',
+        sessionId: this.sessionId,
+        sessionTitle: this.sessionTitle,
+        cwd: this.cwd,
+        ttlMs: this.ttlMs,
+      });
+      this.started = true;
+      this.heartbeatTimer = setInterval(() => this.heartbeat(), this.heartbeatMs);
+      if (this.heartbeatTimer.unref) this.heartbeatTimer.unref();
+      this.heartbeat();
+    } catch (error) {
+      // A broken board directory must not kill the coding session: run
+      // dormant (no presence, no guard, no tools) and say why.
+      console.warn(
+        '[pi-god-view] board start failed, running dormant: ' + (error && error.stack ? error.stack : error),
+      );
+    }
     return this;
   }
 
@@ -124,23 +153,37 @@ export class PiBoard {
         focus: 'finished',
         lastAction: reason,
       });
-    } catch {}
+    } catch (error) {
+      console.warn('[pi-god-view] board stop failed: ' + (error && error.message ? error.message : error));
+    }
   }
 
   heartbeat() {
     if (!this.started) return;
     try {
       S.heartbeat(this.root, this.id);
+      // Renew this session's leases while its turn is active, like the DSH
+      // host does; without this a long turn outlives its own lease. An idle
+      // session stops renewing so its leases age out.
+      if ((this.presence && this.presence.status) === 'active') S.renewClaims(this.root, this.id);
       S.expireClaims(this.root);
+      if (Date.now() - this.lastPruneAt >= PRUNE_MS) {
+        this.lastPruneAt = Date.now();
+        S.prune(this.root);
+      }
       this.presence = S.getAgent(this.root, this.id) || this.presence;
-    } catch {}
+    } catch (error) {
+      console.warn('[pi-god-view] heartbeat failed: ' + (error && error.message ? error.message : error));
+    }
   }
 
   update(patch = {}) {
     if (!this.started) return this.presence;
     try {
       this.presence = S.updateAgent(this.root, this.id, patch);
-    } catch {}
+    } catch (error) {
+      console.warn('[pi-god-view] presence update failed: ' + (error && error.message ? error.message : error));
+    }
     return this.presence;
   }
 
@@ -181,7 +224,9 @@ export class PiBoard {
   agentSettled() {
     const current = this.presence || S.getAgent(this.root, this.id);
     if (current && current.status === 'blocked') {
-      this.releaseAutoClaims('blocked');
+      // A blocked session is still working: it keeps its leases and waits to
+      // be unblocked, matching the DSH host. Releasing here would let another
+      // agent take files the session is actively waiting to resume.
       return;
     }
     this.setStatus('idle', { lastAction: 'idle' });
@@ -198,7 +243,9 @@ export class PiBoard {
         claims.map((claim) => claim.path),
         { summary },
       );
-    } catch {}
+    } catch (error) {
+      console.warn('[pi-god-view] auto-claim release failed: ' + (error && error.message ? error.message : error));
+    }
   }
 
   releaseAll(summary = 'finished') {
@@ -211,7 +258,9 @@ export class PiBoard {
         claims.map((claim) => claim.path),
         { summary },
       );
-    } catch {}
+    } catch (error) {
+      console.warn('[pi-god-view] lease release failed: ' + (error && error.message ? error.message : error));
+    }
   }
 
   repoRel(raw) {
@@ -260,13 +309,21 @@ export class PiBoard {
     if (claim && claim.agent !== this.id) return this.claimDenial(claim, rel);
     if (!claim) {
       const focus = (this.presence && this.presence.focus) || 'auto ' + toolName;
-      const result = this.claim([rel], {
-        auto: true,
-        ttlMs: this.autoClaimTtlMs,
-        reason: 'auto claim for ' + toolName,
-        intent: focus,
-      });
-      if (result.conflicts.length > 0) return this.claimDenial(result.conflicts[0], rel);
+      try {
+        const result = this.claim([rel], {
+          auto: true,
+          ttlMs: this.autoClaimTtlMs,
+          reason: 'auto claim for ' + toolName,
+          intent: focus,
+        });
+        if (result.conflicts.length > 0) return this.claimDenial(result.conflicts[0], rel);
+      } catch (error) {
+        // The guard protects coordination, not the write itself; if the board
+        // is unwritable the write proceeds unguarded instead of failing.
+        console.warn(
+          '[pi-god-view] auto-claim failed, write allowed: ' + (error && error.message ? error.message : error),
+        );
+      }
     }
     return undefined;
   }
@@ -408,7 +465,14 @@ export class PiBoard {
     const claims = snap.claims;
     const changes = S.listChanges(this.root, { limit: 6 });
     const lines = [
-      'godview · ' + path.basename(this.root) + ' · ' + active.length + ' active · ' + claims.length + ' claims',
+      'godview · ' +
+        path.basename(this.root) +
+        ' · ' +
+        active.length +
+        (active.length === 1 ? ' session' : ' sessions') +
+        ' · ' +
+        claims.length +
+        ' claims',
     ];
     for (const agent of active.slice(0, 8)) {
       lines.push('● ' + oneLine(agent.name, 40) + ' [' + agent.status + '] ' + oneLine(agent.focus || 'no focus', 96));

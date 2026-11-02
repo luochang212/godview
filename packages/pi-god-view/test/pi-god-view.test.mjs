@@ -167,12 +167,114 @@ test('the three tools claim, list, release, and report status', async () => {
   cleanup(root);
 });
 
+test('heartbeat renews the leases of an active session', () => {
+  const { root, board } = makeBoard('renew');
+  board.claim(['src/long.js'], { reason: 'long turn' });
+  const file = path.join(root, '.dsh/parallel/claims', S.hash('src/long.js') + '.json');
+  const before = JSON.parse(fs.readFileSync(file, 'utf8'));
+  // Age the lease close to expiry without expiring it: a turn that outlives
+  // the auto TTL must be kept alive by the heartbeat between writes.
+  fs.writeFileSync(file, JSON.stringify({ ...before, expiresAt: Date.now() + 10_000 }, null, 2));
+  board.heartbeat();
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(after.expiresAt > Date.now() + 60_000, 'the active session renews its lease');
+  // An idle session stops renewing so its leases age out to bound them.
+  board.update({ status: 'idle' });
+  const idleBefore = JSON.parse(fs.readFileSync(file, 'utf8'));
+  fs.writeFileSync(file, JSON.stringify({ ...idleBefore, expiresAt: Date.now() + 10_000 }, null, 2));
+  board.heartbeat();
+  const idleAfter = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.ok(idleAfter.expiresAt <= Date.now() + 60_000, 'an idle session does not renew');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('the write guard fails open when the board itself is unwritable', () => {
+  const { root, board } = makeBoard('failopen');
+  const claimsDir = path.join(root, '.dsh/parallel/claims');
+  fs.rmSync(claimsDir, { recursive: true, force: true });
+  fs.writeFileSync(claimsDir, 'not a directory');
+  assert.equal(board.checkWrite('src/fresh.js', 'write'), undefined);
+  board.stop('test');
+  cleanup(root);
+});
+
+test('a session start survives an unwritable board directory', () => {
+  const { root, ctx } = fixture('guarded');
+  const claimsDir = path.join(root, '.dsh/parallel/claims');
+  fs.mkdirSync(path.join(root, '.dsh/parallel'), { recursive: true });
+  fs.writeFileSync(claimsDir, 'not a directory');
+  const board = new PiBoard(ctx, { registryDir: path.join(root, 'registry'), heartbeatMs: 60_000, ttlMs: 60_000 });
+  board.start();
+  assert.equal(board.started, false, 'start degrades to dormant instead of throwing');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('a session outside a repository does not create a board', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-god-view-norepo-'));
+  const ctx = {
+    cwd: root,
+    sessionManager: { getSessionId: () => 'norepo', getSessionName: () => 'session-norepo' },
+  };
+  const board = new PiBoard(ctx, { registryDir: path.join(root, 'registry') });
+  board.start();
+  assert.equal(board.started, false, 'no board without a repository marker');
+  assert.equal(fs.existsSync(path.join(root, '.dsh')), false);
+  board.stop('test');
+  // An explicit root override still forces a board.
+  const forced = new PiBoard(ctx, { registryDir: path.join(root, 'registry'), root });
+  forced.start();
+  assert.equal(forced.started, true, 'options.root forces a board');
+  forced.stop('test');
+  cleanup(root);
+});
+
+test('a blocked session keeps its leases when the turn settles', () => {
+  const { root, board } = makeBoard('blocked');
+  board.claim(['src/blocked-auto.js'], { auto: true, reason: 'auto' });
+  board.update({ status: 'blocked' });
+  board.agentSettled();
+  assert.ok(S.getClaim(root, 'src/blocked-auto.js'), 'a blocked session keeps its leases');
+  assert.equal(S.getAgent(root, board.id).status, 'blocked', 'the blocked status is kept');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('team_claim release without paths is an error, not a silent release-all', async () => {
+  const { root, board } = makeBoard('relpath');
+  board.claim(['src/keep.js'], { auto: true, reason: 'auto' });
+  const tools = createTools(() => board);
+  const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+  await assert.rejects(
+    () => byName.team_claim.execute('id', { action: 'release' }, null, null, {}),
+    /at least one path/,
+  );
+  assert.ok(S.getClaim(root, 'src/keep.js'), 'the lease survives the failed release');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('the board sweeps ancient rows it no longer needs', () => {
+  const { root, board } = makeBoard('prune');
+  S.createAgent(root, { id: 'ghost', name: 'Ghost' });
+  const ghostFile = path.join(root, '.dsh/parallel/agents', 'ghost.json');
+  const old = new Date(Date.now() - 8 * 24 * 60 * 60_000);
+  fs.utimesSync(ghostFile, old, old);
+  board.lastPruneAt = 0;
+  board.heartbeat();
+  assert.equal(fs.existsSync(ghostFile), false, 'ancient presence rows are pruned');
+  assert.ok(S.getAgent(root, board.id), 'the live session survives its own sweep');
+  board.stop('test');
+  cleanup(root);
+});
+
 test('panel lines are derived from the shared store', () => {
   const { root, board } = makeBoard('panel');
   board.claim(['src/panel.js'], { reason: 'panel work' });
   const lines = board.panelLines();
   assert.match(lines[0], /godview/);
-  assert.match(lines[0], /1 active/);
+  assert.match(lines[0], /1 session/);
   assert.ok(lines.some((line) => line.includes('src/panel.js')));
   assert.match(board.summaryLine(), /GV 1a\/1c/);
   board.stop('test');

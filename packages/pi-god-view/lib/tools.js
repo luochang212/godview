@@ -182,10 +182,7 @@ export function createTools(getBoard) {
         return claimReport(board, result);
       }
       if (action === 'release') {
-        if (paths.length === 0) {
-          board.releaseAll(params.reason || 'released');
-          return text('Released all of your file leases.', { released: 'all' });
-        }
+        if (paths.length === 0) throw new Error('paths must contain at least one path');
         const result = board.release(paths, params.reason || 'released');
         const lines = [];
         for (const claim of result.released || []) lines.push('released ' + claim.path);
