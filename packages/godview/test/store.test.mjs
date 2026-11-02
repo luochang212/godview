@@ -28,6 +28,18 @@ test('presence and one-line focus', () => {
   assert.equal(updated.focus, 'waiting for API');
 });
 
+test('re-registering a presence row preserves last activity and finish time', () => {
+  const root = repo();
+  const old = Date.now() - 60 * 60_000;
+  const first = S.createAgent(root, { id: 'alice', status: 'done', now: old });
+  assert.equal(first.updatedAt, old);
+  assert.equal(first.finishedAt, old);
+  const later = old + 30 * 60_000;
+  const again = S.createAgent(root, { id: 'alice', status: 'done', updatedAt: later });
+  assert.equal(again.updatedAt, later, 'explicit updatedAt wins over the clock');
+  assert.equal(again.finishedAt, old, 're-registering does not rewrite the finish time');
+});
+
 test('claims conflict, release, and produce a claim/release timeline', () => {
   const root = repo();
   S.createAgent(root, { id: 'a', name: 'A' });
@@ -570,6 +582,10 @@ test('a legacy change without a paths array does not break claim or release', ()
   delete change.paths;
   delete change.timeline;
   fs.writeFileSync(path.join(S.paths(root).changes, change.id + '.json'), JSON.stringify(change));
+  const listed = S.listChanges(root).find((item) => item.id === change.id);
+  assert.deepEqual(listed.paths, [], 'readers get an empty paths array, not undefined');
+  const cli = spawnSync(process.execPath, [CLI_PATH, 'changes', '--repo', root], { encoding: 'utf8' });
+  assert.equal(cli.status, 0, cli.stderr);
   assert.doesNotThrow(() => S.claimPaths(root, 'a', ['legacy.ts'], { intent: 'after legacy' }));
   assert.doesNotThrow(() => S.releasePaths(root, 'a', ['legacy.ts'], { summary: 'ok' }));
   const repaired = S.listChanges(root)[0];
@@ -601,4 +617,82 @@ test('reading a board that does not exist creates nothing', () => {
   const summary = S.projectSummary(root);
   assert.equal(summary.agents, 0);
   assert.equal(fs.existsSync(path.join(root, '.dsh')), false);
+});
+
+test('an explicit nested root is not re-resolved to its git parent', () => {
+  const parent = repo();
+  const child = path.join(parent, 'nested');
+  fs.mkdirSync(child);
+  S.createAgent(child, { id: 'a', name: 'A' });
+  S.claimPaths(child, 'a', ['src/x.ts']);
+  assert.equal(S.listAgents(child).length, 1, 'the agent is written to the requested root');
+  assert.equal(S.listAgents(parent).length, 0, 'the git parent stays untouched');
+  assert.ok(S.getClaim(child, 'src/x.ts'));
+  assert.equal(fs.existsSync(path.join(parent, S.STORE_DIR)), false);
+});
+
+test('the global registry directory is not a repository marker', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pt-home-'));
+  fs.mkdirSync(path.join(home, '.git'));
+  fs.writeFileSync(path.join(home, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  const registry = path.join(home, S.STORE_DIR);
+  fs.mkdirSync(registry, { recursive: true });
+  fs.writeFileSync(path.join(registry, 'projects.json'), '[]');
+  const notes = path.join(home, 'Documents', 'notes');
+  fs.mkdirSync(notes, { recursive: true });
+  assert.equal(S.resolveRepoRoot(notes), notes, 'a registry-looking parent is skipped');
+  S.createAgent(notes, { id: 'n', name: 'N' });
+  assert.ok(fs.existsSync(path.join(notes, S.STORE_DIR, 'agents')));
+  assert.equal(fs.existsSync(path.join(registry, 'agents')), false, 'the registry gains no board rows');
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('prune keeps a change referenced by a live lease', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/live.ts']);
+  const change = S.listChanges(root, { state: 'claimed' })[0];
+  const file = path.join(S.paths(root).changes, change.id + '.json');
+  const old = new Date(Date.now() - 8 * 24 * 60 * 60_000);
+  fs.utimesSync(file, old, old);
+  const pruned = S.prune(root);
+  assert.equal(pruned.changes, 0, 'the change is still referenced by the lease');
+  assert.equal(fs.existsSync(file), true);
+  assert.equal(S.listClaims(root).length, 1);
+  S.releasePaths(root, 'a', ['src/live.ts'], { summary: 'done' });
+  const done = S.listChanges(root).find((item) => item.id === change.id);
+  assert.equal(done.state, 'done');
+  assert.ok(done.timeline.some((event) => event.type === 'release' && event.path === 'src/live.ts'));
+});
+
+test('snapshot keeps a live change outside the recent window', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/old.ts']);
+  const active = S.listChanges(root, { state: 'claimed' })[0];
+  const activeFile = path.join(S.paths(root).changes, active.id + '.json');
+  const activeRaw = JSON.parse(fs.readFileSync(activeFile, 'utf8'));
+  activeRaw.updatedAt = Date.now() - 60 * 60_000;
+  fs.writeFileSync(activeFile, JSON.stringify(activeRaw));
+
+  for (let i = 0; i < 30; i++) {
+    const id = 'c' + i;
+    S.createAgent(root, { id, name: id });
+    S.claimPaths(root, id, ['src/f' + i + '.ts']);
+    S.releasePaths(root, id, ['src/f' + i + '.ts'], { summary: 'done' + i });
+  }
+  const dir = S.paths(root).changes;
+  for (const name of fs.readdirSync(dir)) {
+    const file = path.join(dir, name);
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (raw.state !== 'claimed') {
+      raw.updatedAt = Date.now() + 1000;
+      fs.writeFileSync(file, JSON.stringify(raw));
+    }
+  }
+  const snap = S.snapshot(root, { changeLimit: 30 });
+  assert.equal(snap.stats.claims, 1);
+  assert.equal(snap.stats.changes, 1, 'the live change is counted even outside the recent 30');
+  assert.equal(snap.changes.length, 31, 'the recent window plus the live change');
+  assert.ok(snap.changes.some((change) => change.id === active.id));
 });

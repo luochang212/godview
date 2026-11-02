@@ -106,14 +106,6 @@ function listJson(dir) {
   return out;
 }
 
-function isDir(dir) {
-  try {
-    return fs.statSync(dir).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 function exists(target) {
   try {
     fs.statSync(target);
@@ -121,6 +113,20 @@ function exists(target) {
   } catch {
     return false;
   }
+}
+
+// The global registry lives at ~/.dsh/parallel by default, which is also the
+// board directory name. A registry has projects.json/state.json but no
+// config.json; a board always gets config.json from ensureStore(). Using
+// config.json as the marker keeps a stray cwd under $HOME from turning the
+// global registry directory into a board for every non-git home folder.
+function registryLike(root) {
+  const base = paths(root).base;
+  return exists(path.join(base, 'projects.json')) || exists(path.join(base, 'state.json'));
+}
+
+export function hasBoard(root) {
+  return exists(paths(root).config) && !registryLike(root);
 }
 
 export function resolveRepoRoot(start, explicit) {
@@ -132,7 +138,8 @@ export function resolveRepoRoot(start, explicit) {
   let current = path.resolve(start || process.cwd());
   const first = current;
   for (let i = 0; i < 30; i++) {
-    if (exists(path.join(current, '.git')) || isDir(path.join(current, STORE_DIR))) return current;
+    if (hasBoard(current)) return current;
+    if (exists(path.join(current, '.git')) && !registryLike(current)) return current;
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
@@ -181,7 +188,10 @@ const STORE_README = [
 const STORE_GITIGNORE = ['*', '!.gitignore', '!README.md', ''].join('\n');
 
 export function ensureStore(root, options = {}) {
-  const p = paths(resolveRepoRoot(root));
+  // ensureStore receives a board root, not a directory to search upward from.
+  // Re-resolving here made an explicit root / config.root / --root silently
+  // write to an ancestor while readers used the requested root.
+  const p = paths(root);
   if (options.create === false) return p;
   ensureDir(p.base);
   for (const dir of [p.agents, p.claims, p.changes]) ensureDir(dir);
@@ -203,6 +213,14 @@ export function prune(root, options = {}) {
   const now = options.now || nowMs();
   const maxAgeMs = options.maxAgeMs || 7 * 24 * 60 * 60_000;
   const removed = { agents: 0, claims: 0, changes: 0, tmp: 0 };
+  // A change can be much older than its live lease: explicit leases can run for
+  // days and heartbeat renewals do not touch the change's mtime. Keep any change
+  // that a lease still points at; the lease sweep records the terminal event.
+  const heldChangeIds = new Set(
+    listJson(p.claims)
+      .map((claim) => claim && claim.changeId)
+      .filter(Boolean),
+  );
   const sweep = (dir, kind) => {
     let names;
     try {
@@ -216,6 +234,10 @@ export function prune(root, options = {}) {
       try {
         const stat = fs.statSync(file);
         if (now - stat.mtimeMs > maxAgeMs) {
+          if (kind === 'changes' && heldChangeIds.size > 0) {
+            const change = readJson(file);
+            if (change && change.id && heldChangeIds.has(change.id)) continue;
+          }
           fs.unlinkSync(file);
           removed[kind]++;
         }
@@ -323,6 +345,7 @@ export function createAgent(root, input = {}) {
   const name =
     input.name !== undefined ? uniqueName(root, input.name, id) : (current && current.name) || uniqueName(root, id, id);
   const ttlMs = Number(input.ttlMs) > 0 ? Number(input.ttlMs) : DEFAULT_TTL_MS;
+  const updatedAt = Number.isFinite(Number(input.updatedAt)) ? Number(input.updatedAt) : now;
   const agent = {
     id,
     name,
@@ -341,11 +364,12 @@ export function createAgent(root, input = {}) {
     branch: input.branch !== undefined ? input.branch : (current && current.branch) || readBranch(p.root),
     files: Array.isArray(input.files) ? input.files.map(String).slice(0, 30) : (current && current.files) || [],
     startedAt: (current && current.startedAt) || now,
-    updatedAt: now,
+    updatedAt,
     heartbeatAt: now,
     ttlMs,
     expiresAt: now + ttlMs,
   };
+  if (agent.status === 'done') agent.finishedAt = (current && current.finishedAt) || now;
   writeJsonAtomic(path.join(p.agents, id + '.json'), agent);
   return agent;
 }
@@ -457,12 +481,15 @@ export function listChanges(root, options = {}) {
   if (options.agent) changes = changes.filter((change) => change.agent === options.agent);
   changes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return changes.slice(0, limit).map((change) => {
-    if (Array.isArray(change.timeline) && change.timeline.length > 0) return change;
-    const legacyPaths = Array.isArray(change.paths) ? change.paths : [];
+    // A legacy or hand-edited change may have no paths array. Readers such as
+    // team_roster and the CLI join paths directly, so normalize it here for
+    // every returned change, not only when a timeline has to be synthesized.
+    const normalized = { ...change, paths: Array.isArray(change.paths) ? change.paths : [] };
+    if (Array.isArray(change.timeline) && change.timeline.length > 0) return normalized;
     // Legacy boards carry no timeline. Synthesize one event per path so the
     // shape matches what claimPaths/releasePaths/expireClaims append (a
     // singular "path", as documented in docs/protocol.md).
-    const timeline = legacyPaths.map((path) => ({
+    const timeline = normalized.paths.map((path) => ({
       type: 'claim',
       at: change.createdAt,
       agent: change.agent,
@@ -471,7 +498,7 @@ export function listChanges(root, options = {}) {
       intent: change.intent,
     }));
     if (change.state !== 'claimed' && change.releasedAt) {
-      for (const path of legacyPaths) {
+      for (const path of normalized.paths) {
         timeline.push({
           type: change.state === 'expired' ? 'expire' : 'release',
           at: change.releasedAt,
@@ -482,7 +509,7 @@ export function listChanges(root, options = {}) {
         });
       }
     }
-    return { ...change, timeline };
+    return { ...normalized, timeline };
   });
 }
 
@@ -922,11 +949,19 @@ export function projectSummary(root) {
 export function snapshot(root, options = {}) {
   const p = ensureStore(root, { create: options.create === true });
   const claims = listClaims(p.root);
-  const changes = listChanges(p.root, { limit: options.changeLimit || 30 });
-  const activeChanges = changes.filter((change) => change.state === 'claimed');
+  // Keep the recent window for the Gantt, but never let an old live lease fall
+  // out of it: a busy board can easily have 30 newer finished changes while one
+  // long-running claim is still held. The rail would then say "1 claim" while
+  // the Gantt had no bar for it.
+  const recent = listChanges(p.root, { limit: options.changeLimit || 30 });
+  const activeChanges = listChanges(p.root, { state: 'claimed', limit: 200 });
+  const byId = new Map();
+  for (const change of recent) byId.set(change.id, change);
+  for (const change of activeChanges) byId.set(change.id, change);
+  const changes = [...byId.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const agents = listAgents(p.root, { includeStale: true }).map((agent) => ({
     ...agent,
-    activeChanges: changes.filter((change) => change.agent === agent.id && change.state === 'claimed').length,
+    activeChanges: activeChanges.filter((change) => change.agent === agent.id).length,
   }));
   const active = agents.filter((agent) => !agent.stale && agent.status !== 'done');
   const stats = {
