@@ -76,7 +76,7 @@ function findNode(node, predicate) {
  * stale \`en\` default the Host serves before its locale resolves, while the host
  * locale service already knows the active language.
  */
-function loadPlugin({ documentLang, activeLocale, queue, fetchImpl }) {
+function loadPlugin({ documentLang, activeLocale, queue, fetchImpl, extras }) {
   let spec = null;
   const react = createReact(queue);
   const sandbox = {
@@ -98,6 +98,7 @@ function loadPlugin({ documentLang, activeLocale, queue, fetchImpl }) {
     fetch: fetchImpl || (() => Promise.reject(new Error('unexpected fetch'))),
     console,
   };
+  if (extras) Object.assign(sandbox, extras);
   vm.runInNewContext(SOURCE, sandbox, { filename: CLIENT_PATH });
   assert.ok(spec, 'client bundle registers itself with the module loader');
 
@@ -559,4 +560,83 @@ test('the topbar carries a rail toggle next to the switch', () => {
   assert.equal(toggle.props['aria-expanded'], 'true', 'the rail starts open');
   assert.ok(findByProp(tree, 'role', 'switch'), 'the coordination switch stays in the topbar');
   assert.ok(findByClass(tree, 'pt-side'), 'the rail renders by default');
+});
+
+test('a hung poll times out through the abort signal and polling recovers', async () => {
+  const calls = [];
+  const fakeAbortSignal = {
+    // AbortSignal.timeout() shape: a signal the test aborts on demand, so the
+    // 10s production timeout can be exercised without waiting for it.
+    timeout: () => {
+      const listeners = new Set();
+      const signal = {
+        aborted: false,
+        addEventListener: (_type, listener) => listeners.add(listener),
+        removeEventListener: (_type, listener) => listeners.delete(listener),
+        fireAbort: () => {
+          signal.aborted = true;
+          for (const listener of [...listeners]) listener();
+        },
+      };
+      return signal;
+    },
+  };
+  const board = {
+    root: '/tmp/repo',
+    projects: [],
+    selectedRoot: '',
+    agents: [],
+    claims: [],
+    changes: [],
+    stats: { active: 0, working: 0, blocked: 0, claims: 0 },
+  };
+  const plugin = loadPlugin({
+    documentLang: 'zh-CN',
+    activeLocale: 'zh',
+    queue: [board, '', false, { enabled: true, trackedSessions: 1, roots: [] }, false],
+    fetchImpl: (url, init) => {
+      calls.push({ url, signal: init && init.signal });
+      if (url.endsWith('/coordination')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ enabled: true, trackedSessions: 1, roots: [] }),
+        });
+      }
+      // /projects hangs until its timeout signal aborts the request.
+      return new Promise((resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          const error = new Error('signal timed out');
+          error.name = 'TimeoutError';
+          reject(error);
+        });
+      });
+    },
+    extras: { AbortSignal: fakeAbortSignal },
+  });
+  plugin.exports.apply(plugin.ctx);
+  const toggle = findByProp(plugin.lastEntry('main').component(), 'role', 'switch');
+  assert.ok(toggle, 'coordination switch rendered');
+
+  const flush = async () => {
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  const hungPoll = () => calls.filter((call) => call.url.endsWith('/projects')).at(-1);
+  const polls = () => calls.filter((call) => call.url.endsWith('/projects')).length;
+
+  const first = toggle.props.onClick();
+  await flush();
+  assert.equal(polls(), 1, 'the click re-reads state through /projects');
+  assert.ok(hungPoll().signal, 'the poll request carries a timeout signal');
+  hungPoll().signal.fireAbort();
+  await first;
+
+  // The heart of the regression: the aborted poll must release the inflight
+  // guard, so the next tick issues a fresh /projects request instead of being
+  // skipped forever.
+  const second = toggle.props.onClick();
+  await flush();
+  assert.equal(polls(), 2, 'the inflight guard recovers after a timed-out poll');
+  hungPoll().signal.fireAbort();
+  await second;
 });

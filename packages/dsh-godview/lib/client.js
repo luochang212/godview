@@ -272,8 +272,35 @@ window.__ModuleLoader__.load({
         .slice(0, 8);
     }
 
+    // A hung connection must not hold the inflight guard in load() forever:
+    // one stalled request would otherwise freeze polling on stale data until a
+    // human clicks a project. Every fetch carries a timeout signal.
+    const REQUEST_TIMEOUT_MS = 10_000;
+
+    // AbortSignal.timeout exists in the host webview; go through globalThis so
+    // a sandboxed environment without it still loads the bundle.
+    function timeoutSignal() {
+      try {
+        const signalCtor = globalThis.AbortSignal;
+        return signalCtor && signalCtor.timeout ? signalCtor.timeout(REQUEST_TIMEOUT_MS) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+
+    function requestError(error) {
+      if (error && (error.name === 'TimeoutError' || error.name === 'AbortError'))
+        return new Error(L('请求超时', 'Request timed out'));
+      return error;
+    }
+
     async function request(path) {
-      const response = await fetch(API + path, { credentials: 'same-origin' });
+      let response;
+      try {
+        response = await fetch(API + path, { credentials: 'same-origin', signal: timeoutSignal() });
+      } catch (error) {
+        throw requestError(error);
+      }
       let value;
       try {
         value = await response.json();
@@ -372,6 +399,9 @@ window.__ModuleLoader__.load({
               credentials: 'same-origin',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ enabled: enabled === true }),
+              signal: timeoutSignal(),
+            }).catch((error) => {
+              throw requestError(error);
             });
             if (!response.ok) throw new Error('HTTP ' + response.status);
             setCoordination(await response.json());
