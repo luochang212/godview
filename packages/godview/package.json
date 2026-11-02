@@ -1,6 +1,6 @@
 {
   "name": "godview",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Generic core for the God's Eye parallel-agent board: presence, file leases, and a claim/release timeline.",
   "type": "module",
   "main": "./lib/store.js",
@@ -18,11 +18,11 @@
     "README.md",
     "LICENSE"
   ],
-  "scripts": {
-    "test": "node --test test/*.test.mjs"
-  },
   "engines": {
     "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [
     "multi-agent",
@@ -31,6 +31,9 @@
     "cli"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/luochang212/godview.git",

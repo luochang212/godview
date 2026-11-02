@@ -17,7 +17,10 @@ test('package is the DSH adapter, not the generic core', () => {
   assert.equal(pkg.main, './lib/index.js');
   assert.equal(pkg.exports?.['./store'], undefined, 'the store is owned by godview');
   assert.equal(pkg.bin, undefined, 'the CLI is owned by godview');
-  assert.equal(pkg.dependencies?.godview, '^0.1.0');
+  // The three packages version as one fixed changeset group (ADR 25), so the
+  // range must track godview's own version instead of a pinned literal.
+  const core = JSON.parse(readFileSync(join(root, '..', 'godview', 'package.json'), 'utf8'));
+  assert.equal(pkg.dependencies?.godview, '^' + core.version);
   assert.ok(pkg.files.includes('README.md'));
   assert.ok(pkg.files.includes('LICENSE'));
 });

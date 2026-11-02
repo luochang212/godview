@@ -370,9 +370,12 @@ test('extension registers three tools, the guard, and /godview', () => {
 
 test('package manifest exposes a pi extension and the pi-package keyword', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const core = JSON.parse(fs.readFileSync(new URL('../../godview/package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.name, 'pi-godview');
-  assert.equal(pkg.version, '0.1.0');
+  // The three packages version as one fixed changeset group (ADR 25), so the
+  // range must track godview's own version instead of a pinned literal.
+  assert.equal(pkg.version, core.version);
   assert.ok(pkg.keywords.includes('pi-package'));
   assert.deepEqual(pkg.pi.extensions, ['./extensions/pi-godview.js']);
-  assert.equal(pkg.dependencies.godview, '^0.1.0');
+  assert.equal(pkg.dependencies.godview, '^' + core.version);
 });
