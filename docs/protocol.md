@@ -85,6 +85,8 @@ Claim file:
 
 `reason` duplicates the intent for readers that only look at a claim file, and `renewedAt` is stamped by each renewal. Leases (auto and explicit) are renewed by the owning host's heartbeat while its session is running; the TTL bounds leases whose owner is gone.
 
+Leases also follow owner liveness (ADR 31). A lease a host session created — every auto lease, and any lease carrying a `sessionId` — is only as alive as its owner's presence: once that presence row stops beating past its TTL, the lease is abandoned. An abandoned lease is filtered from `listClaims` (pass `includeAbandoned: true` to inspect unswept files), denied by nobody, and takeable by the next claim; the takeover appends an expire event with the summary `owner presence gone` and closes the change as expired. A lease made through the CLI without a session has no owner process to track and keeps its plain TTL, so a human reservation cannot be bulldozed by a stale presence row.
+
 Change file:
 
 ```json
@@ -129,9 +131,10 @@ Lifecycle:
 - release removes the lease and appends a release event; when no leases remain, the change becomes done with the release summary. The CLI displays `done` as `released`; the panel shows the timeline and summary, not a state label. It only means the leases were released, not that the work was committed;
 - auto release on idle uses summary turn ended;
 - expired leases are removed and append an expire event; when no leases remain, the change becomes expired. A lease that expired unswept (its owner gone) and is then taken over by another agent is recorded the same way, so no change keeps an open claim forever. A lease re-claimed by its own agent is a renewal and keeps its original createdAt;
+- a lease abandoned by its dead owner is swept the same way by any host's expiry pass and by takeovers, with summary owner presence gone;
 - one active change per agent; a new claim joins it unless it was released.
 
-Release accepts a summary. Expiry uses lease expired. The timeline is capped at 200 events per change.
+Release accepts a summary. Expiry uses lease expired, an abandoned takeover uses owner presence gone. The timeline is capped at 200 events per change.
 
 ## Coordination switch
 
@@ -153,15 +156,24 @@ Coordination is on by default. The switch is a single global file in the registr
 Step 0: the guard only runs while the coordination switch is on.
 
 1. resolve the write/edit target against the session cwd, then the repository root;
-2. deny if a live lease belongs to another agent;
+2. deny if a live lease belongs to another agent — live means both unexpired and owned by a session whose presence still beats; an abandoned lease is takeable instead;
 3. otherwise create an auto lease in the current change;
-4. release auto leases on idle; release all leases when the session is disposed.
+4. release auto leases on idle; release all leases when the session is disposed, or when the host itself stops.
 
 `team_claim` paths are different: they are always resolved against the repository root, even when the session was started in a subdirectory. Only the write/edit guard starts from the session cwd.
 
 There is one guard policy. Writes and edits are auto-claimed and live conflicts are denied; the panel and the agents' prompt context always show the current leases. Shell edits are outside the guard.
 
 The guard fails open: if recording the lease itself fails (for example the board directory cannot be written), the write is allowed and the host logs a warning. Coordination never blocks work because its own bookkeeping broke.
+
+## Agent-facing reports
+
+Both hosts render what a session is told about its peers from one shared module (`godview/report`), so the two hosts cannot drift apart. Two rules carry the precision contract (ADR 31):
+
+- **Unprompted views are the collision view.** The prompt context and `team_status` list only peers that could actually collide: working or blocked, with live presence. An idle session has released its auto leases and cannot conflict, so it is omitted there; ended and stale sessions never appear. Leases listed as "claimed by others" always have a live owner, because abandoned leases are filtered at the store.
+- **The roster is the explicit full read.** `team_roster` still lists idle sessions (marked as such) and stale ones on request — the reader asked for the whole board, not the collision view.
+
+`team_claim list` answers with the lease table only, in both hosts.
 
 ## Project registry
 

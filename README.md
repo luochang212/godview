@@ -75,7 +75,8 @@ Agent 写文件前先拿 lease：
 - 其他 Agent 的 live claim 会直接阻止写入；
 - 同一个 Agent 的 claim 可以续租；
 - idle 时 auto claim 自动释放；
-- explicit claim 需要显式 release，或等 TTL 过期。
+- explicit claim 需要显式 release，或等 TTL 过期；
+- 租约跟随会话存活：owner 的心跳停了，它的租约立即失效、不再拦截别人，下一个 claim 可以直接接管（CLI 里不带会话号的显式租约除外，仍按 TTL 算）。
 
 claim 是精确到文件路径的，不支持目录或 glob。
 

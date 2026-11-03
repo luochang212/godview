@@ -14,6 +14,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
 import * as S from 'godview';
+import * as R from 'godview/report';
 
 export const name = 'dsh-godview';
 export const inject = ['tools'];
@@ -66,16 +67,6 @@ function clampNumber(value, min, max, fallback) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(n)));
-}
-
-function ago(ms) {
-  if (!ms) return 'never';
-  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (seconds < 60) return seconds + 's';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return minutes + 'm';
-  const hours = Math.floor(minutes / 60);
-  return hours + 'h';
 }
 
 function oneLine(text, max) {
@@ -178,7 +169,9 @@ function renderText(_args, value) {
 
 export function apply(ctx, config) {
   const runtime = new TeamRuntime(ctx, readConfig(config));
-  ctx.effect(() => {
+  // Return the lifecycle disposer so an embedding host (and the smoke test)
+  // can stop the runtime explicitly and observe the shutdown path.
+  return ctx.effect(() => {
     runtime.start();
     return () => runtime.stop();
   }, 'dsh-godview: lifecycle');
@@ -235,10 +228,29 @@ class TeamRuntime {
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     this.heartbeatTimer = undefined;
     this.pruneTimer = undefined;
+    for (const item of this.pendingTouches.values()) {
+      if (item.timer) clearTimeout(item.timer);
+    }
+    this.pendingTouches.clear();
     for (const dispose of this.disposers.splice(0)) {
       try {
         dispose();
       } catch {}
+    }
+    // Closing the host closes its sessions out, the way a session disposal
+    // does: presence done, every lease released. Without this, a clean quit
+    // or update restart would leave leases to age out over their full TTL
+    // exactly like a crash. Dormant entries have no board row and are skipped.
+    if (this.coordinationOn === true) {
+      for (const entry of this.tracked.values()) {
+        try {
+          if (!S.getAgent(entry.root, entry.id)) continue;
+          S.updateAgent(entry.root, entry.id, { status: 'done', lastAction: 'host stopped' });
+          this.releaseAutoClaims(entry, true, 'host stopped');
+        } catch (error) {
+          this.warn(error);
+        }
+      }
     }
     for (const entry of this.tracked.values()) {
       try {
@@ -698,21 +710,7 @@ class TeamRuntime {
   }
 
   claimDenial(claim, rel) {
-    const until = claim.expiresAt ? new Date(claim.expiresAt).toISOString() : 'soon';
-    return {
-      kind: 'deny',
-      reason:
-        'File lease conflict: ' +
-        rel +
-        ' is claimed by ' +
-        (claim.agentName || claim.agent) +
-        ' (' +
-        claim.mode +
-        (claim.auto ? ', auto' : '') +
-        ') until ' +
-        until +
-        '. Do not edit it concurrently; wait for the lease to be released or expire, or coordinate through team_claim and team_status.',
-    };
+    return { kind: 'deny', reason: R.claimDenialText(claim, rel) };
   }
 
   async beforeTool(exec, next) {
@@ -842,35 +840,21 @@ class TeamRuntime {
     const entry = this.tracked.get(String(agent.session.id));
     if (!entry) return '';
     const root = entry.root;
-    const agents = S.listAgents(root, { includeStale: false }).filter(
-      (item) => item.id !== entry.id && item.status !== 'done',
-    );
-    const claims = S.listClaims(root).filter((claim) => claim.agent !== entry.id);
-    if (agents.length === 0 && claims.length === 0) return '';
+    // The prompt context is the unprompted view: only peers that could
+    // collide with this session (working or blocked, presence live). An idle
+    // session cannot conflict — it released its auto leases — and an ended
+    // one is gone; both stay visible through team_roster instead. Abandoned
+    // leases are filtered by the store, so claims listed here always have a
+    // live owner.
+    const peers = R.activePeers(root, entry.id);
+    const claims = R.claimsByOthers(root, entry.id);
+    if (peers.length === 0 && claims.length === 0) return '';
     const lines = [];
-    lines.push('## Parallel agent team in ' + basename(root));
+    lines.push('## Parallel agent team in ' + R.boardName(root));
     lines.push(
-      'Other sessions in this repository. [active] is running, [blocked] is waiting, [idle] is alive but not running. Never guess it.',
+      'Working or blocked sessions in this repository. [active] is running, [blocked] is waiting; idle and ended sessions are omitted. Never guess it.',
     );
-    const shown = agents.slice(0, this.cfg.maxPromptPeers);
-    for (const peer of shown) {
-      const state = peer.status;
-      const focus = peer.focus || peer.lastAction || '(no focus)';
-      lines.push(
-        '- ' +
-          peer.name +
-          ' [' +
-          state +
-          '] ' +
-          oneLine(focus, 160) +
-          ' (id=' +
-          peer.id +
-          ', seen ' +
-          ago(peer.heartbeatAt) +
-          ' ago)',
-      );
-    }
-    if (agents.length > shown.length) lines.push('- +' + (agents.length - shown.length) + ' more; call team_roster.');
+    lines.push(...R.peerLines(peers, this.cfg.maxPromptPeers));
     if (claims.length > 0) {
       const sample = claims
         .slice(0, 6)
@@ -957,10 +941,10 @@ class TeamRuntime {
         } else if (status === 'idle') {
           this.releaseAutoClaims(entry, false, 'status idle');
         }
-        const others = S.listAgents(entry.root, { includeStale: false }).filter(
-          (item) => item.id !== entry.id && item.status !== 'done',
-        );
-        const claims = S.listClaims(entry.root).filter((claim) => claim.agent !== entry.id);
+        // The answer to an explicit "who is working" is the collision view,
+        // same as the prompt context: working or blocked only (ADR 31).
+        const others = R.activePeers(entry.root, entry.id);
+        const claims = R.claimsByOthers(entry.root, entry.id);
         const lines = [
           'You are ' +
             updated.name +
@@ -1001,84 +985,7 @@ class TeamRuntime {
         if (!this.coordinationEnabled()) return textOutput(COORDINATION_OFF);
         const entry = this.ensureTracked(exec.agent);
         const includeStale = optBool(args, 'include_stale') === true;
-        const agents = S.listAgents(entry.root, { includeStale }).filter((agent) => agent.status !== 'done');
-        const claims = S.listClaims(entry.root);
-        const live = agents.filter((agent) => !agent.stale);
-        const running = live.filter((agent) => agent.status === 'active' || agent.status === 'blocked').length;
-        const lines = ['# Parallel team - ' + basename(entry.root) + ' (' + entry.root + ')'];
-        lines.push(
-          'Sessions: ' + agents.length + ' listed, ' + live.length + ' live, ' + running + ' running/waiting.',
-        );
-        for (const agent of agents) {
-          const state = agent.stale ? 'stale' : agent.status;
-          lines.push(
-            '- ' +
-              agent.name +
-              ' [' +
-              state +
-              '] id=' +
-              agent.id +
-              ' - ' +
-              oneLine(agent.focus || agent.lastAction || 'no focus', 220) +
-              ' (seen ' +
-              ago(agent.heartbeatAt) +
-              ' ago' +
-              (agent.branch ? ', branch ' + agent.branch : '') +
-              ')',
-          );
-        }
-        if (claims.length) {
-          lines.push('Claims:');
-          for (const claim of claims)
-            lines.push(
-              '- ' +
-                claim.path +
-                ' - ' +
-                claim.agentName +
-                ' (' +
-                claim.mode +
-                ', ' +
-                Math.ceil(claim.remainingMs / 60000) +
-                'm left)',
-            );
-        }
-        const activeChanges = S.listChanges(entry.root, { state: 'claimed', limit: 10 });
-        if (activeChanges.length) {
-          lines.push('Active changes:');
-          for (const change of activeChanges) {
-            lines.push(
-              '- [' +
-                change.agentName +
-                '] ' +
-                oneLine(change.intent, 160) +
-                ' - ' +
-                change.paths.join(', ') +
-                ' (session ' +
-                String(change.sessionId || 'cli').slice(0, 8) +
-                ')',
-            );
-          }
-        }
-        const recentChanges = S.listChanges(entry.root, { limit: 12 })
-          .filter((change) => change.state !== 'claimed')
-          .slice(0, 6);
-        if (recentChanges.length) {
-          lines.push('Recent changes:');
-          for (const change of recentChanges) {
-            lines.push(
-              '- [' +
-                change.state +
-                '] ' +
-                change.agentName +
-                ': ' +
-                oneLine(change.intent, 140) +
-                ' - ' +
-                change.paths.join(', ') +
-                (change.summary ? ' (' + change.summary + ')' : ''),
-            );
-          }
-        }
-        return textOutput(lines.join('\n'));
+        return textOutput(R.renderRoster(entry.root, entry.id, { includeStale }));
       },
     });
 

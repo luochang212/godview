@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as S from 'godview';
+import * as R from 'godview/report';
 
 export const HEARTBEAT_MS = 15_000;
 export const TTL_MS = 60_000;
@@ -34,14 +35,6 @@ export function oneLine(value, max = 180) {
   return text.slice(0, Math.max(0, max - 1)) + '…';
 }
 
-export function ago(value) {
-  const ms = Math.max(0, Date.now() - Number(value || 0));
-  if (ms < 1_000) return 'now';
-  if (ms < 60_000) return Math.floor(ms / 1_000) + 's';
-  if (ms < 3_600_000) return Math.floor(ms / 60_000) + 'm';
-  return Math.floor(ms / 3_600_000) + 'h';
-}
-
 function sessionName(ctx, sessionId) {
   try {
     const name =
@@ -53,10 +46,6 @@ function sessionName(ctx, sessionId) {
     .slice(0, 24)
     .replace(/^-+|-+$/g, '');
   return 'pi-' + (raw || 'session');
-}
-
-function statusRank(status) {
-  return { active: 0, blocked: 1, idle: 2, done: 3 }[status] ?? 9;
 }
 
 export class PiBoard {
@@ -331,27 +320,15 @@ export class PiBoard {
   }
 
   claimDenial(claim, rel) {
-    const until = claim.expiresAt ? new Date(claim.expiresAt).toISOString() : 'soon';
-    return (
-      'File lease conflict: ' +
-      rel +
-      ' is claimed by ' +
-      (claim.agentName || claim.agent) +
-      ' (' +
-      claim.mode +
-      (claim.auto ? ', auto' : '') +
-      ') until ' +
-      until +
-      '. Do not edit it concurrently; wait for the lease to be released or expired, or coordinate through team_claim and team_status.'
-    );
+    return R.claimDenialText(claim, rel);
   }
 
   statusText(updated) {
     const agent = updated || this.presence || {};
-    const peers = S.listAgents(this.root, { includeStale: false })
-      .filter((item) => item.id !== this.id && item.status !== 'done')
-      .sort((a, b) => statusRank(a.status) - statusRank(b.status));
-    const claims = S.listClaims(this.root).filter((claim) => claim.agent !== this.id);
+    // Same collision view as the DSH host: working or blocked peers only,
+    // from the shared report module (ADR 31). Idle sessions cannot conflict.
+    const peers = R.activePeers(this.root, this.id);
+    const claims = R.claimsByOthers(this.root, this.id);
     const lines = [
       'You are ' +
         (agent.name || 'unknown') +
@@ -378,83 +355,7 @@ export class PiBoard {
   }
 
   rosterText(includeStale = false) {
-    const agents = S.listAgents(this.root, { includeStale }).filter((agent) => agent.status !== 'done');
-    const claims = S.listClaims(this.root);
-    const live = agents.filter((agent) => !agent.stale);
-    const running = live.filter((agent) => agent.status === 'active' || agent.status === 'blocked').length;
-    const lines = ['# Pi godview - ' + path.basename(this.root) + ' (' + this.root + ')'];
-    lines.push('Sessions: ' + agents.length + ' listed, ' + live.length + ' live, ' + running + ' running/waiting.');
-    for (const agent of agents) {
-      const state = agent.stale ? 'stale' : agent.status;
-      lines.push(
-        '- ' +
-          agent.name +
-          ' [' +
-          state +
-          '] id=' +
-          agent.id +
-          ' - ' +
-          oneLine(agent.focus || agent.lastAction || 'no focus', 220) +
-          ' (seen ' +
-          ago(agent.heartbeatAt) +
-          ' ago' +
-          (agent.branch ? ', branch ' + agent.branch : '') +
-          ')',
-      );
-    }
-    if (claims.length > 0) {
-      lines.push('Claims:');
-      for (const claim of claims) {
-        lines.push(
-          '- ' +
-            claim.path +
-            ' - ' +
-            claim.agentName +
-            ' (' +
-            claim.mode +
-            ', ' +
-            Math.ceil((claim.remainingMs || 0) / 60_000) +
-            'm left)',
-        );
-      }
-    }
-    const activeChanges = S.listChanges(this.root, { state: 'claimed', limit: 10 });
-    if (activeChanges.length > 0) {
-      lines.push('Active changes:');
-      for (const change of activeChanges) {
-        lines.push(
-          '- [' +
-            change.agentName +
-            '] ' +
-            oneLine(change.intent, 160) +
-            ' - ' +
-            change.paths.join(', ') +
-            ' (session ' +
-            String(change.sessionId || 'pi').slice(0, 8) +
-            ')',
-        );
-      }
-    }
-    const recent = S.listChanges(this.root, { limit: 12 })
-      .filter((change) => change.state !== 'claimed')
-      .slice(0, 6);
-    if (recent.length > 0) {
-      lines.push('Recent changes:');
-      for (const change of recent) {
-        lines.push(
-          '- [' +
-            change.state +
-            '] ' +
-            change.agentName +
-            ': ' +
-            oneLine(change.intent, 140) +
-            ' - ' +
-            change.paths.join(', ') +
-            (change.summary ? ' (' + change.summary + ')' : ''),
-        );
-      }
-    }
-    return lines.join('\n');
+    return R.renderRoster(this.root, this.id, { includeStale });
   }
 
   panelLines() {

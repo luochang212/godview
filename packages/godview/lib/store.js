@@ -425,6 +425,41 @@ export function removeAgent(root, id) {
 
 // ---------------------------------------------------------------- claims
 
+// A lease is only as alive as the session that renews it. Host sessions
+// heartbeat, so when their presence row stops beating the lease is a leftover
+// of a dead session and must not deny writes or feed reports (ADR 31).
+// Correlation applies to leases a host session created: auto leases, and any
+// lease carrying a session id. A CLI lease made without a session has no
+// owner process to track and keeps its plain TTL.
+function claimCorrelated(claim) {
+  return claim.auto === true || Boolean(claim.sessionId);
+}
+
+/**
+ * Whether one owner row currently beats. A missing row counts as dead: the
+ * owner either left explicitly (which releases its leases) or is pruned dust.
+ */
+function ownerAlive(p, agentId, now, memo) {
+  const id = safeId(agentId || '');
+  if (!id) return false;
+  if (!memo) memo = new Map();
+  if (!memo.has(id)) {
+    const owner = readJson(path.join(p.agents, id + '.json'));
+    if (!owner) {
+      memo.set(id, false);
+    } else {
+      const heartbeatAt = typeof owner.heartbeatAt === 'number' ? owner.heartbeatAt : owner.updatedAt || 0;
+      memo.set(id, now - heartbeatAt <= (owner.ttlMs || DEFAULT_TTL_MS));
+    }
+  }
+  return memo.get(id);
+}
+
+function leaseAbandoned(p, claim, now, memo) {
+  if (!claim || !claimCorrelated(claim)) return false;
+  return !ownerAlive(p, claim.agent, now, memo);
+}
+
 export function getClaim(root, rawPath) {
   const p = paths(root);
   let rel;
@@ -434,17 +469,21 @@ export function getClaim(root, rawPath) {
     return undefined;
   }
   if (!rel) return undefined;
+  const now = nowMs();
   const claim = readJson(path.join(p.claims, hash(rel) + '.json'));
   if (!claim) return undefined;
-  if ((claim.expiresAt || 0) <= nowMs()) return undefined;
+  if ((claim.expiresAt || 0) <= now) return undefined;
+  if (leaseAbandoned(p, claim, now)) return undefined;
   return claim;
 }
 
-export function listClaims(root) {
+export function listClaims(root, options = {}) {
   const p = paths(root);
   const now = nowMs();
+  const memo = new Map();
   return listJson(p.claims)
     .filter((claim) => claim && claim.path && (claim.expiresAt || 0) > now)
+    .filter((claim) => options.includeAbandoned === true || !leaseAbandoned(p, claim, now, memo))
     .map((claim) => ({ ...claim, remainingMs: Math.max(0, (claim.expiresAt || 0) - now) }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -529,7 +568,7 @@ function remainingLeaseFiles(root, changeId) {
  * removed the lease file successfully (unlink decides who records), so this
  * only edits the change.
  */
-function recordExpire(root, claim, now) {
+function recordExpire(root, claim, now, summary = 'lease expired') {
   if (!claim.changeId) return;
   const change = getChange(root, claim.changeId);
   if (!change) return;
@@ -542,7 +581,7 @@ function recordExpire(root, claim, now) {
     agent: claim.agent,
     agentName: claim.agentName,
     path: claim.path,
-    summary: 'lease expired',
+    summary,
   });
   change.timeline = change.timeline.slice(-200);
   if (remaining.length === 0 && change.state === 'claimed') {
@@ -612,6 +651,7 @@ export function claimPaths(root, agentId, rawPaths, options = {}) {
     change.updatedAt = now;
     change.auto = change.auto === true || options.auto === true;
   }
+  const ownerMemo = new Map();
   for (const raw of rawPaths || []) {
     const rel = normalizeRepoPath(p.root, raw);
     if (!rel) continue;
@@ -632,7 +672,12 @@ export function claimPaths(root, agentId, rawPaths, options = {}) {
       expiresAt: now + ttlMs,
     };
     let existing = readJson(file);
-    if (existing && (existing.expiresAt || 0) > now && existing.agent !== agent.id) {
+    if (
+      existing &&
+      (existing.expiresAt || 0) > now &&
+      existing.agent !== agent.id &&
+      !leaseAbandoned(p, existing, now, ownerMemo)
+    ) {
       conflicts.push(existing);
       continue;
     }
@@ -645,22 +690,26 @@ export function claimPaths(root, agentId, rawPaths, options = {}) {
       claimed.push(next);
       continue;
     }
-    // No lease yet, or an expired one held by someone else. Take the lease
-    // through an exclusive create: when two agents race for the same expired
-    // lease, only the process whose create succeeds owns it, and the loser
-    // re-reads the winner's live claim and records a conflict instead of
-    // silently overwriting the file (which would leave the loser's change
-    // open forever with no lease pointing at it).
+    // No lease yet, or a lease whose owner is gone: expired, or held by a
+    // session whose presence stopped beating. Take the lease through an
+    // exclusive create: when two agents race for the same dead lease, only
+    // the process whose create succeeds owns it, and the loser re-reads the
+    // winner's live claim and records a conflict instead of silently
+    // overwriting the file (which would leave the loser's change open forever
+    // with no lease pointing at it).
     // Only cross-agent takeovers are recorded: a lease re-claimed by its own
     // agent is a renewal and keeps its original createdAt. Unlink success
     // decides who records the previous owner's expiry, so concurrent claimers
     // cannot double-record it.
     const stale = readJson(file);
-    if (stale && (stale.expiresAt || 0) <= now && stale.agent !== agent.id) {
-      try {
-        fs.unlinkSync(file);
-        if (stale.changeId) recordExpire(p.root, stale, now);
-      } catch {}
+    if (stale && stale.agent !== agent.id) {
+      const expiredLease = (stale.expiresAt || 0) <= now;
+      if (expiredLease || leaseAbandoned(p, stale, now, ownerMemo)) {
+        try {
+          fs.unlinkSync(file);
+          if (stale.changeId) recordExpire(p.root, stale, now, expiredLease ? 'lease expired' : 'owner presence gone');
+        } catch {}
+      }
     }
     const taken = createLeaseFile(file, next);
     if (taken === true) {
@@ -777,9 +826,12 @@ export function expireClaims(root, options = {}) {
   const touched = new Set();
   let count = 0;
   const expiredByChange = new Map();
+  const ownerMemo = new Map();
   for (const claim of listJson(p.claims)) {
     if (!claim || !claim.path) continue;
-    if ((claim.expiresAt || 0) > now) continue;
+    const expiredLease = (claim.expiresAt || 0) <= now;
+    const abandonedLease = !expiredLease && leaseAbandoned(p, claim, now, ownerMemo);
+    if (!expiredLease && !abandonedLease) continue;
     // Only the process whose unlink succeeds records the expiry, so
     // concurrent hosts sweeping the same batch cannot double-record events.
     try {
@@ -790,7 +842,7 @@ export function expireClaims(root, options = {}) {
     if (claim.changeId) {
       touched.add(claim.changeId);
       const list = expiredByChange.get(claim.changeId) || [];
-      list.push(claim);
+      list.push({ claim, summary: abandonedLease ? 'owner presence gone' : 'lease expired' });
       expiredByChange.set(claim.changeId, list);
     }
     count++;
@@ -801,14 +853,14 @@ export function expireClaims(root, options = {}) {
     const remaining = remainingLeaseFiles(p.root, id);
     change.updatedAt = now;
     change.timeline = Array.isArray(change.timeline) ? change.timeline : [];
-    for (const claim of expiredByChange.get(id) || []) {
+    for (const { claim, summary } of expiredByChange.get(id) || []) {
       change.timeline.push({
         type: 'expire',
         at: now,
         agent: claim.agent,
         agentName: claim.agentName,
         path: claim.path,
-        summary: 'lease expired',
+        summary,
       });
     }
     change.timeline = change.timeline.slice(-200);

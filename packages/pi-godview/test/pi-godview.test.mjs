@@ -162,6 +162,15 @@ test('the three tools claim, list, release, and report status', async () => {
   assert.match(released.content[0].text, /released src\/a\.js/);
   assert.equal(S.listClaims(root).length, 0);
 
+  // `team_claim list` answers with the lease table only — the same output the
+  // DSH host gives — not with the whole roster.
+  board.claim(['src/listed.js'], { reason: 'listed' });
+  const listed = await byName.team_claim.execute('id', { action: 'list' }, null, null, {});
+  assert.match(listed.content[0].text, /Active file claims:/);
+  assert.match(listed.content[0].text, /src\/listed\.js/);
+  assert.doesNotMatch(listed.content[0].text, /Sessions: /, 'list does not leak the roster');
+  board.release(['src/listed.js'], 'cleanup');
+
   board.claim(['src/auto-idle.js'], { auto: true, reason: 'auto' });
   await byName.team_status.execute('id', { status: 'idle' }, null, null, {});
   assert.equal(S.getClaim(root, 'src/auto-idle.js'), undefined, 'idle releases the auto lease');
@@ -266,6 +275,26 @@ test('a done session stays done through settle', () => {
   const after = S.getAgent(root, board.id);
   assert.equal(after.status, 'done', 'settle does not rewrite done to idle');
   assert.equal(after.finishedAt, before.finishedAt, 'the finish timestamp survives settle');
+  board.stop('test');
+  cleanup(root);
+});
+
+test('statusText reports working peers only; the roster keeps the full view', () => {
+  const { root, board } = makeBoard('precise');
+  const idle = makeBoardAt(root, 'idle-peer');
+  const working = makeBoardAt(root, 'working-peer');
+  idle.update({ status: 'idle', focus: 'waiting around' });
+  working.update({ focus: 'editing files' });
+
+  const status = board.statusText();
+  assert.match(status, /working-peer \[active\]/);
+  assert.doesNotMatch(status, /idle-peer/, 'an idle peer is omitted from team_status');
+  const roster = board.rosterText();
+  assert.match(roster, /idle-peer \[idle\]/, 'the roster still lists idle sessions');
+  assert.match(roster, /# Parallel team -/, 'the roster header comes from the shared report');
+
+  idle.stop('test');
+  working.stop('test');
   board.stop('test');
   cleanup(root);
 });

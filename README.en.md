@@ -75,7 +75,8 @@ An agent takes a lease before writing:
 - a live claim owned by another agent denies the write;
 - the same agent can renew its own claim;
 - auto claims are released when the agent goes idle;
-- explicit claims need an explicit release, or expire after their TTL.
+- explicit claims need an explicit release, or expire after their TTL;
+- a lease dies with its session: once the owner's heartbeat stops, the lease no longer denies anyone and the next claim takes it over (a CLI lease made without a session keeps its plain TTL).
 
 Claims are exact file paths. Directories and globs are not supported.
 

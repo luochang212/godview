@@ -3,7 +3,11 @@
  *
  * The definitions use plain JSON Schema, so this package does not import the
  * Pi host at runtime. The host supplies the model catalog and validation.
+ * Output text follows the shared report module (godview/report) so the two
+ * hosts speak one protocol; this file imports the store only for the claim
+ * list the `team_claim list` action returns.
  */
+import { listClaims } from 'godview';
 
 const STATUSES = ['active', 'idle', 'blocked', 'done'];
 const MODES = ['edit', 'review'];
@@ -87,8 +91,8 @@ export function createTools(getBoard) {
         }
         patch.status = params.status;
       }
-      if (params.focus !== undefined) patch.focus = String(params.focus).slice(0, 240);
-      if (params.plan !== undefined) patch.plan = String(params.plan).slice(0, 1500);
+      if (params.focus !== undefined) patch.focus = String(params.focus).slice(0, 500);
+      if (params.plan !== undefined) patch.plan = String(params.plan).slice(0, 4000);
       if (params.files !== undefined) {
         patch.files = asPaths(params.files).slice(0, 30);
       }
@@ -165,7 +169,31 @@ export function createTools(getBoard) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const board = boardFor(getBoard, ctx);
       const action = String(params.action || '');
-      if (action === 'list') return text(board.rosterText(false), { root: board.root });
+      // `list` answers with the lease table only, exactly like the DSH host's
+      // team_claim list — not the roster (the old drift this fixes).
+      if (action === 'list') {
+        const claims = listClaims(board.root);
+        if (claims.length === 0) return text('No active file claims.', { root: board.root });
+        return text(
+          ['Active file claims:']
+            .concat(
+              claims.map(
+                (claim) =>
+                  '- ' +
+                  claim.path +
+                  ' - ' +
+                  claim.agentName +
+                  ' (' +
+                  claim.mode +
+                  ', ' +
+                  Math.ceil(claim.remainingMs / 60_000) +
+                  'm left)',
+              ),
+            )
+            .join('\n'),
+          { root: board.root },
+        );
+      }
       const paths = asPaths(params.paths);
       if (action === 'claim') {
         if (paths.length === 0) throw new Error('team_claim claim needs at least one path');

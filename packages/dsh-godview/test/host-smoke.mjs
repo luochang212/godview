@@ -50,7 +50,7 @@ const ctx = {
   },
 };
 
-apply(ctx, { root: repo, registryDir: registry, heartbeatMs: 60_000, prompt: true });
+const disposeRuntime = apply(ctx, { root: repo, registryDir: registry, heartbeatMs: 60_000, prompt: true });
 
 function emit(event, payload) {
   for (const listener of handlers.get(event) || []) listener(payload);
@@ -154,8 +154,8 @@ assert.ok(promptEntry, 'the prompt context is installed');
 const promptText = promptEntry.text();
 assert.match(promptText, /Your active change .+: wiring the panel\. Paths: src\/auto\.ts/);
 assert.doesNotMatch(promptText, /\.\. Paths/);
-assert.match(promptText, /Other sessions in this repository/);
-assert.match(promptText, /\[idle\] is alive but not running/);
+assert.match(promptText, /Working or blocked sessions in this repository/);
+assert.match(promptText, /\[active\] is running, \[blocked\] is waiting/);
 assert.doesNotMatch(promptText, /Other agents are working/);
 decision = await pre({ name: 'write', agent: bob, arguments: { file_path: 'src/auto.ts' } }, async () => allow);
 assert.equal(decision.kind, 'deny');
@@ -183,6 +183,22 @@ decision = await pre({ name: 'write', agent: bob, arguments: { file_path: 'src/a
 assert.equal(decision.kind, 'allow');
 assert.equal(S.getClaim(repo, 'src/auto.ts').agent, bobId);
 S.releasePaths(repo, bobId, ['src/auto.ts']);
+
+// The unprompted views stay precise: an idle session cannot collide (it has
+// released its auto leases), so it leaves the prompt context and team_status,
+// while the roster — the explicit read — keeps it. Carol is brought in early
+// so the collision view has a working peer to show next to the idle one.
+emit('agent/status', { agent: bob, status: 'idle' });
+emit('agent/status', { agent: makeAgent('session-carol-999999'), status: 'running' });
+const precisePrompt = alice.promptContexts.at(-1).text();
+assert.match(precisePrompt, /- agent-999999 \[/, 'a running peer is listed in the prompt context');
+assert.doesNotMatch(precisePrompt, /- Bob \[/, 'an idle peer is omitted from the prompt context');
+const preciseStatus = await status.execute({}, { agent: alice });
+assert.match(preciseStatus.text, /Other sessions: agent-999999 \[active\]/);
+assert.doesNotMatch(preciseStatus.text, /Bob \[/, 'team_status omits idle peers');
+const preciseRoster = await roster.execute({}, { agent: alice });
+assert.match(preciseRoster.text, /Bob \[idle\]/, 'the roster still lists idle sessions');
+emit('agent/status', { agent: bob, status: 'running' });
 
 const carol = makeAgent('session-carol-999999');
 emit('agent/status', { agent: carol, status: 'running' });
@@ -358,6 +374,20 @@ const frankId = agentIdForSession('session-frank-13579');
 assert.ok(S.getAgent(repo, frankId), 'config.root forces a session outside a repo onto the configured board');
 assert.equal(S.getAgent(outside, frankId), undefined, 'the session cwd gets no board');
 fs.rmSync(outside, { recursive: true, force: true });
+
+// A stopping host closes its sessions out the way a disposal does: presence
+// done, every lease released. A clean quit must not look like a crash that
+// leaves leases to age out over their full TTL.
+const stopAuto = await pre({ name: 'write', agent: alice, arguments: { file_path: 'src/stop.ts' } }, async () => allow);
+assert.equal(stopAuto.kind, 'allow');
+assert.ok(S.getClaim(repo, 'src/stop.ts'), 'the lease exists while the host runs');
+await claimTool.execute({ action: 'claim', paths: ['src/stop-explicit.ts'], reason: 'planned lease' }, { agent: dave });
+assert.ok(S.getClaim(repo, 'src/stop-explicit.ts'), 'the explicit lease exists while the host runs');
+disposeRuntime();
+assert.equal(S.getClaim(repo, 'src/stop.ts'), undefined, 'stopping the host releases auto leases');
+assert.equal(S.getClaim(repo, 'src/stop-explicit.ts'), undefined, 'stopping the host releases explicit leases');
+assert.equal(S.getAgent(repo, aliceId).status, 'done', 'stopping the host closes its sessions');
+assert.equal(S.getAgent(repo, agentIdForSession('session-dave-246810')).status, 'done');
 
 await new Promise((resolve) => server.close(resolve));
 

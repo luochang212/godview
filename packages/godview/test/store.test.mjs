@@ -65,6 +65,52 @@ test('claims conflict, release, and produce a claim/release timeline', () => {
   );
 });
 
+test('a lease abandoned by its dead owner stops blocking and reporting', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.createAgent(root, { id: 'b', name: 'B' });
+  const first = S.claimPaths(root, 'a', ['src/gone.ts'], { auto: true, sessionId: 'session-a' });
+  assert.equal(first.claimed.length, 1);
+  // The owner's host died: its heartbeat stopped ten minutes ago.
+  S.updateAgent(root, 'a', { now: Date.now() - 10 * 60_000 });
+  assert.equal(S.listClaims(root).length, 0, 'an abandoned lease is not reported as live');
+  assert.equal(S.getClaim(root, 'src/gone.ts'), undefined, 'an abandoned lease does not deny writes');
+  // A takeover records the expire event on the abandoned change instead of
+  // reporting a conflict against a session that no longer exists.
+  const takeover = S.claimPaths(root, 'b', ['src/gone.ts'], { intent: 'rescue' });
+  assert.equal(takeover.conflicts.length, 0, 'an abandoned lease is takeable');
+  assert.equal(takeover.claimed.length, 1);
+  const abandoned = S.listChanges(root, { state: 'expired' }).find((change) => change.agent === 'a');
+  assert.ok(abandoned, 'the abandoned change is closed');
+  assert.ok(abandoned.timeline.some((event) => event.type === 'expire' && event.path === 'src/gone.ts'));
+  // The lease file is still on disk until a sweep runs; inspection can see it.
+  assert.equal(S.listClaims(root, { includeAbandoned: true }).length, 1, 'inspection lists unswept abandoned leases');
+});
+
+test('a CLI lease without a session keeps its plain TTL', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'cli', name: 'Cli' });
+  S.createAgent(root, { id: 'b', name: 'B' });
+  const made = S.claimPaths(root, 'cli', ['docs/plan.md'], { intent: 'human reservation' });
+  assert.equal(made.claimed.length, 1);
+  S.updateAgent(root, 'cli', { now: Date.now() - 10 * 60_000 });
+  assert.equal(S.listClaims(root).length, 1, 'a sessionless lease outlives its stale row');
+  const result = S.claimPaths(root, 'b', ['docs/plan.md']);
+  assert.equal(result.conflicts.length, 1, 'a sessionless lease still conflicts');
+});
+
+test('expireClaims sweeps leases abandoned by their dead owner', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/wreck.ts'], { auto: true, sessionId: 'session-a' });
+  S.updateAgent(root, 'a', { now: Date.now() - 10 * 60_000 });
+  assert.equal(S.expireClaims(root), 1);
+  assert.equal(S.listClaims(root, { includeAbandoned: true }).length, 0);
+  const change = S.listChanges(root, { state: 'expired' })[0];
+  assert.ok(change);
+  assert.ok(change.timeline.some((event) => event.type === 'expire' && event.path === 'src/wreck.ts'));
+});
+
 test('renewClaims does not resurrect a claim that was concurrently released', () => {
   const root = repo();
   S.createAgent(root, { id: 'a', name: 'A' });
