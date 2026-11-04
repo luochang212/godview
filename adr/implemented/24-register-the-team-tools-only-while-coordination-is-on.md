@@ -1,43 +1,43 @@
 ---
 status: implemented
 date: 2026-11-01
-description: Read when changing what a dormant host registers, or how the coordination switch scopes the tool catalog.
+description: 修改休眠宿主注册哪些内容、或协调开关如何界定工具目录范围时请阅读本记录。
 raised-by: human
 decided-by: human
 created: 2026-11-01
 paths: [packages/dsh-godview/lib/index.js, packages/dsh-godview/test/host-smoke.mjs, docs/protocol.md, AGENTS.md, README.md, README.en.md]
 ---
 
-# ADR: 24 Register the team tools only while coordination is on
+# ADR: 24 仅在协调开启时注册团队工具
 
 ## Problem
 
-Switching coordination off already stops board writes, leases, the write guard, and the prompt context (ADR 20). The three tools stayed registered, so every request still carried their schemas, and the model could call a tool that only answered "Coordination is off". The dormant mode still touched the one thing the switch exists for: a single agent's context and behaviour. The human's intent is that off means the plugin does not disturb the agent; the old dormant path did not meet it.
+关掉协调本已停止了看板写入、租约、写入守卫和提示词上下文（ADR 20）。但三个工具仍然保持注册，于是每个请求依旧带着它们的 schema，模型还可能去调用一个只会回答 "Coordination is off" 的工具。休眠模式仍旧触碰了开关存在的唯一意义：单个 agent 的上下文与行为。人的意图是：关了就意味着插件不打扰 agent；旧的休眠路径没有做到这一点。
 
 ## Decision
 
-Tool registration is part of the switch, not a separate setting. `start()` reads the persisted switch and calls `syncTools()`; `syncTools()` registers the three tools only while coordination is on and disposes them through the same Cordis effect disposers when it is off. `setCoordination()` syncs immediately, and every coordination check (heartbeat, write/edit guard, team tool call, `GET /coordination`) syncs when the value changed. `stop()` disposes them too. The execute handlers keep the off-notice guard for a call admitted before the flip.
+工具注册属于开关的一部分，而不是另一项独立设置。`start()` 读取持久化的开关并调用 `syncTools()`;`syncTools()` 只在协调开启时注册那三个工具，关闭时通过同一套 Cordis effect disposer 把它们销毁。`setCoordination()` 立即同步，每一次协调检查（心跳、write/edit 守卫、团队工具调用、`GET /coordination`）在取值发生变化时都会同步。`stop()` 同样会销毁它们。execute 处理器保留关闭提示的守卫，以应对在开关翻转之前就已放行的调用。
 
-Boundary: the panel entry, the `GET/POST /coordination` route, one `state.json` read per write/edit, in-memory session tracking, and the global project registry stay. A dormant host is not an unloaded plugin; it is an agent-visible nothing.
+边界：面板入口、`GET/POST /coordination` 路由、每次 write/edit 一次的 `state.json` 读取、内存中的会话跟踪，以及全局项目注册表都保留下来。休眠的宿主不是被卸载的插件，它在 agent 的视野里空无一物。
 
-The host assembles the tool catalog every step and, when the set changes, records a `developer/message` with `tool-addition` / `tool-removal` entries and starts a new request series (`dsh-agent-loop`). A flip therefore applies on the next step, not only after a restart.
+宿主每一步都会组装工具目录，当工具集合发生变化时，记录一条带 `tool-addition` / `tool-removal` 条目的 `developer/message`，并开启新一轮请求序列（`dsh-agent-loop`）。因此开关翻转在下一步就会生效，不必等到重启之后。
 
 ## Alternatives considered
 
-**Keep the tools and shorten their descriptions.** Rejected: the schemas still cost context on every request and the tools stay callable; that is the disturbance.
+**保留工具，只缩短它们的描述。** 已否决：schema 依旧在每个请求上消耗上下文，工具也依旧可被调用——这本身就是打扰。
 
-**Hide the tools behind a visibility flag.** Rejected: the tool service has no hidden-tool concept; registering and disposing is the mechanism it exposes.
+**用可见性标志把工具藏起来。** 已否决：工具服务没有隐藏工具的概念，注册与销毁就是它对外暴露的机制。
 
-**Move the switch to host settings and unload the plugin when off.** Rejected: the panel is the only switch (ADR 13, ADR 17, ADR 19, ADR 20); turning it off would need a host restart or a second always-on component, and the common solo-work case wants a quick toggle.
+**把开关挪进宿主设置，关闭时卸载插件。** 已否决：面板就是唯一的开关（ADR 13、ADR 17、ADR 19、ADR 20）。真要那样关闭，就需要重启宿主，或者再造一个永远在线的组件，而最常见的单人工作场景要的是快速切换。
 
-**Keep answering `team_*` calls with the off notice.** Rejected: it makes the dormant state visible to the model on every request and invites wasted calls.
+**继续用关闭提示回应 `team_*` 调用。** 已否决：那会让模型在每个请求里都看见休眠状态，还招来浪费性的调用。
 
 ## Consequences
 
-A dormant host puts no team tool in the model's catalog, and the next step after a panel flip sees the change. Turning it off mid-session rewrites the request header and starts a new request series, which rebuilds the prompt cache — cheap for a human-triggered mode change, and the host already tells the model which tools were added or removed.
+休眠的宿主不会往模型的工具目录里放任何团队工具，面板拨动之后的下一步就能看见变化。会话中途关闭它会重写请求头并开启新的请求序列，从而重建提示词缓存——对一次由人触发的模式切换来说，这个代价很小，而且宿主本来就会告诉模型哪些工具被加入或移除了。
 
-A flip made by another process or machine is noticed at the next coordination check (heartbeat, write/edit, tool call, `GET /coordination`), so the catalog follows within one heartbeat; the panel POST is immediate. A call already dispatched when the flip lands still reaches its handler and returns the off notice. A call the model emits after the disposal, without having seen the updated catalog, can surface as an unknown tool; the window is the seconds around a deliberate human flip.
+由其他进程或机器做出的翻转会在下一次协调检查（心跳、write/edit、工具调用、`GET /coordination`）时被察觉，于是工具目录在一个心跳之内跟上，面板的 POST 则是即时的。开关落下的瞬间已经派发出去的调用仍会到达其处理器，返回关闭提示。模型在工具销毁之后、又尚未看到更新目录时发出的调用，可能被报成未知工具——这段窗口只是人主动翻转前后的那几秒钟。
 
-The remaining dormant footprint is deliberate and documented: the panel entry, the switch route, one switch read per write/edit, in-memory tracking, and the global project index. The registry still updates so the panel keeps discovering repositories, and the write guard, leases, presence, and prompt context stay at zero.
+剩下的休眠足迹都是刻意为之且已有文档记录：面板入口、开关路由、每次 write/edit 一次的开关读取、内存中的跟踪，以及全局项目索引。注册表照常更新，面板因此能继续发现仓库，写入守卫、租约、presence 和提示词上下文都保持为零。
 
-The host smoke test pins 3 → 0 → 3 across the panel switch, plus 0 for a host that boots dormant; both fail on the old unconditional registration.
+宿主冒烟测试钉住了面板开关上的 3 → 0 → 3，外加一个以休眠状态启动的宿主的 0；这两项在旧的无条件注册下都会失败。

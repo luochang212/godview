@@ -1,45 +1,45 @@
 ---
 status: implemented
 date: 2026-10-30
-description: Read when changing claim history, release/expiry state, or the occupancy visualization.
+description: 改动占用历史、释放/过期状态或占用可视化之前先阅读本记录。
 raised-by: agent
 decided-by: human
 created: 2026-10-30
 paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/client.js]
 ---
 
-# ADR: 3 Model occupancy as a claim/release timeline rendered as a per-file Gantt
+# ADR: 3 把占用情况建模为占用/释放时间线，并渲染为按文件的甘特图
 
 ## Problem
 
-An active/released list answers "is this file leased now?" but not "when was it claimed, how long was it held, and who released it?". When the user asked for a timeline, the existing data was insufficient: a change had createdAt and releasedAt, but no per-path event stream, and the UI had only status rows.
+活跃/已释放列表能回答「这个文件现在被租占了吗?」，却回答不了「它是什么时候被占用的、持有了多久、是谁释放的?」。当用户提出想要一条时间线时，现有数据并不够：变更记录有 createdAt 和 releasedAt，但没有按路径的事件流，UI 也只有状态行。
 
-The board needed to preserve the short-lived facts that matter for retrospection without turning the whole repository into an event-sourcing system.
+看板需要为复盘保留那些转瞬即逝却重要的事实，而不能把整个仓库变成一个事件溯源系统。
 
 ## Decision
 
-Every claim, release, and expiry appends an event to the owning change's timeline. Each event records at, agent, agentName, path, and intent or summary. The change keeps its current state (claimed, done, expired) and summary; the timeline is the history.
+每一次占用、释放和过期都会向所属变更的时间线追加一个事件。每个事件记录 at、agent、agentName、path，以及 intent 或 summary。变更保留其当前状态（claimed、done、expired）和摘要，时间线就是历史。
 
-Release events are appended before a change becomes done or expired. A change remains claimed while any lease remains. Expiry appends an expire event and marks the change expired when no leases remain.
+释放事件在变更变为 done 或 expired 之前追加。只要还有任何租约存在，变更就保持 claimed。过期会追加一个 expire 事件，并在租约全部耗尽时把变更标记为 expired。
 
-The browser pairs events by path into intervals. A bar runs from claim to release; an active lease extends to now and is rendered as held. The primary view is a per-file Gantt with a time axis, agent colors, duration labels where space permits, and a collapsible exact-time detail list. Hovering a bar exposes start, end, actor, intent, and summary.
+浏览器把事件按路径配对成区间。每根条从占用延伸到释放，活跃的租约会一直延伸到当前时间，渲染为 held 状态。主视图是按文件的甘特图，带时间轴、agent 颜色、在空间允许处显示时长标签，以及一个可折叠的精确时间明细列表。悬停在条上会显示开始、结束、操作者、意图和摘要。
 
-This is a declared claim/release record, not a git diff or commit proof. The timeline is capped per change and pruned with the rest of the board.
+这是一份声明式的占用/释放记录，不是 git diff 或提交证明。每个变更的时间线有容量上限，并随看板其余部分一起清理。
 
 ## Alternatives considered
 
-**Keep separate active and released lists.** This is compact but has no duration or common time axis, and it duplicates the same change in two places. It answers current occupancy but not the user's "when did it happen?" question.
+**保留独立的活跃列表与已释放列表。** 这样很紧凑，但没有时长、没有共同时间轴，还把同一个变更重复放在两个地方。它能回答当前占用情况，却回答不了用户的「什么时候发生的?」之问。
 
-**Keep a flat event log with no intervals.** This preserves facts but leaves the reader to pair claims and releases mentally. The Gantt interval is the useful derived view; the event list remains available as exact evidence.
+**保留不带区间的扁平事件日志。** 这保留了事实，却迫使读者自己在脑中配对占用与释放。甘特区间才是有用的派生视图，事件列表仍可作为精确凭证保留。
 
-**Use git log or file mtimes.** Git history is authoritative for committed changes, but it does not show live leases, cannot represent a released-but-uncommitted change, and is not available for every edit. The board must work before commit.
+**使用 git log 或文件 mtime。** 对已提交的变更，git 历史是权威，但它不显示进行中的租约，无法表示一个已释放却未提交的变更，也不是每次编辑都能拿到。看板必须在提交之前就能工作。
 
-**Store only the latest claim per path.** This loses history and makes release time reconstruction guesswork. The event stream is the minimum needed for a real timeline.
+**每个路径只存最新一次占用。** 这会丢失历史，让重建释放时间变成靠猜。事件流是真正的时间线所需的最小集合。
 
 ## Consequences
 
-The board gains a durable, queryable history of who held a file and for how long. It also gains more data: one event per claim/release/expiry, a cap per change, and a seven-day prune. Partial releases are represented by per-path events, but the UI's active marker is change-level; a partially released change can still show a claim event for a path that was released.
+看板获得了一份持久、可查询的历史：谁持有了哪个文件、持有了多久。随之而来的也是更多数据：每次占用/释放/过期一个事件、每个变更一个上限，以及七天的清理周期。部分释放由按路径的事件表示，但 UI 的活跃标记是变更级的，一个部分释放的变更仍可能显示某条已被释放路径的占用事件。
 
-The Gantt is a derived view. The source of truth remains the change timeline, so other clients can reconstruct intervals later. Tests must cover claim, release, and expire events; the UI test must keep the details element and read-only behavior.
+甘特图是派生视图。真相来源仍是变更时间线，所以其他客户端日后可以据此重建区间。测试必须覆盖 claim、release 和 expire 事件；UI 测试必须保留 details 元素和只读行为。
 
-The timeline cannot prove what was changed. Adding commit or diff fields would be a separate decision.
+时间线无法证明改动了什么。要添加 commit 或 diff 字段，是另一个单独的决定。

@@ -1,41 +1,41 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the panel's coordination-off presentation, the topbar, or anything that would reintroduce an explanatory strip.
+description: 修改面板关闭协调时的呈现、顶栏，或任何可能重新引入说明性横条的东西之前请阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, docs/protocol.md]
 ---
 
-# ADR: 18 Drop the coordination-off banner
+# ADR: 18 移除关闭协调的横幅提示
 
 ## Problem
 
-With coordination off the panel drew a full-width strip under the topbar: "协作已关闭：不记录文件占用，也不阻断并发写入。", plus a warning when the host was too old to carry the route, plus a line when more than one session was running.
+关闭协调后，面板会在顶栏下方画出一条全宽的横条："协作已关闭：不记录文件占用，也不阻断并发写入。"，宿主太旧、没有该路由时再加一条警告，运行中的会话超过一个时再加一行文字。
 
-The switch sits two rows above it and already shows the state through its track colour, thumb position, and `aria-checked`. The strip restated that on every visit, took a whole row away from the board, and the "N sessions are running" sentence told the human something they could not act on in the panel. On a panel whose whole argument is a quiet screen, it was the loudest thing on a dormant install.
+开关就在那横条上面两行处，早已通过轨道颜色、滑块位置和 `aria-checked` 显示了状态。这条横条每次访问都在重复一遍这件事，从看板那里抢走了整整一行；而"N sessions are running"那句话告诉人的，是他们在面板里无从采取行动的信息。在一个以安静画面为全部主张的面板上，它却是休眠安装里最聒噪的东西。
 
 ## Decision
 
-The banner is removed: the element, the `.pt-banner` and `.pt-banner-warn` rules, and the tracked-session count that fed it. The off state is carried by the switch alone.
+横幅提示被移除：该元素、`.pt-banner` 和 `.pt-banner-warn` 规则，以及为它供数的被跟踪会话计数。关闭状态仅由开关自己承载。
 
-Two things deliberately stay:
+有两样东西有意保留：
 
-- **The disabled switch** when the running host predates `/coordination`: the control is visibly disabled and its tooltip explains why. That is a property of the control, not a strip.
-- **The blank-page copy** when coordination is off, because that surface explains why the rail is empty, which the switch cannot say.
+- **禁用的开关**：当运行中的宿主早于 `/coordination` 路由时，控件明显处于禁用状态，其悬停说明会解释原因。那是控件自身的属性，不是一条横条。
+- **空页面的文案**：协调关闭时保留它，因为那个界面要解释项目栏为何是空的——这是开关说不出来的话。
 
 ## Alternatives considered
 
-**Keep only the host-too-old warning.** Rejected: the switch is already disabled in that case and its tooltip says the same thing; a strip for a condition the human fixes by restarting is one more thing to read on every visit.
+**只保留宿主太旧的警告。** 否决：那种情况下开关本就是禁用的，悬停说明也说了同样的话；为一个靠重启就能解决的条件设一条横条，只是每次访问都多出一件要读的事。
 
-**Keep the banner until the human dismisses it once.** Rejected: persistence and a dismiss affordance (a second control) for a sentence nobody needs after the first week.
+**保留横幅直到人关闭一次。** 否决：为一句第一周之后没人需要的话，同时引入持久化和一个关闭入口（第二个控件）。
 
-**Move the message into the switch's tooltip.** The tooltip already explains what turning it on does; folding the "off" sentence in makes it longer without adding information.
+**把提示搬进开关的悬停说明。** 说明本就解释了打开它会做什么；再把"off"那句折进去，只会更长，不会增添信息。
 
 ## Consequences
 
-- A dormant panel shows no sentence about coordination being off. The switch is the only indicator, which matches how the host treats its own toggles.
-- ADR 9's last boundary ("when the host sees several sessions while off, the panel says so") no longer holds and is superseded here; the host still counts sessions internally, it just does not advertise them.
-- `docs/protocol.md` and both READMEs drop the notice from the topbar description.
-- The content area starts one row higher whenever coordination is off, so the two cards sit directly under the topbar.
+- 休眠的面板不再显示任何关于协调已关闭的句子。开关是唯一的指示，与宿主对待自己开关的方式一致。
+- ADR 9 的最后一条边界（"关闭时宿主看到多个会话，面板会加以说明"）不再成立，在此被取代；宿主仍在内部统计会话数，只是不再宣扬。
+- `docs/protocol.md` 和两份 README 都把这条提示从顶栏描述中删掉了。
+- 协调关闭时，内容区从高一行的位置开始，两个卡片直接贴在顶栏之下。

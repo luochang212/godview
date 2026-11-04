@@ -1,56 +1,17 @@
-# Architecture Decision Records
+# 架构决策记录
 
-This directory is the repository's memory against two agent failure modes:
-drifting from long-term decisions while deep in a task, and forgetting settled
-choices until they resurface as inconsistencies.
+本目录是仓库的记忆，用来对抗 agent 的两种失效模式：埋头执行任务时偏离长期决策，以及忘记已经定下的选择，直到它们以不一致的形式重新浮现。
 
-Records follow the lifecycle folders proposed/, implemented/, rejected/, and
-archived/. The folders are a context budget as well as a lifecycle:
-implemented/ is current authority and is read in full; proposed/ is intent and
-is checked; rejected/ is anti-pattern memory and is checked;
-archived/ is lowest-value frozen history and is not read by default. The four
-folders are the whole record inventory: no other folder may sit under adr/ or
-inside one of them, and a Markdown record at the adr/ root fails validation
-rather than disappearing from the list command.
+记录遵循 proposed/、implemented/、rejected/ 和 archived/ 四个生命周期文件夹。这些文件夹既是生命周期，也是上下文预算：implemented/ 是当前的权威，需完整阅读；proposed/ 是意向，需检查；rejected/ 是反模式记忆，需检查；archived/ 是价值最低的冻结历史，默认不读。这四个文件夹就是记录的全部清单：adr/ 之下或这些文件夹之内不得另设其他文件夹；放在 adr/ 根部的 Markdown 记录会让校验失败，而不是从 list 命令的输出里悄然消失。
 
-A proposal is unshipped even when its direction has been settled. Implemented
-records describe shipped decisions and receive stable ADR numbers. A rejection
-is a durable terminal record of a declined proposal: it is removed only when
-another record owns the warning it blocks, never for appearing stale.
-Rejections are unnumbered, so removing a redundant one cannot reuse a number.
-Archived records are frozen history, not current authority. They are ordinary
-Git-tracked records: adrkit validate checks them like the rest of the
-inventory, and Git history shows any later change.
+提案即便方向已定也仍属未落地。implemented 记录描述已经落地的决策，并获得稳定的 ADR 编号。否决记录是对被拒绝提案的永久性终结记录：只有当另一条记录接管了它所防范的警告时才可移除，绝不因「看起来过时」而移除。否决记录不编号，因此删掉一条冗余的否决记录不会让某个编号被复用。archived 记录是冻结的历史，不是当前权威。它们是普通的、由 Git 跟踪的记录：adrkit validate 会像校验清单里其余记录一样校验它们，任何后续改动都能在 Git 历史中看到。
 
-Never delete a numbered decision: its stable N may be referenced elsewhere.
-Implemented records may refresh factual paths, symbols, and defaults, but a
-changed choice needs a new record. Archive or supersede rather than erase it.
+永远不要删除带编号的决策：它稳定的编号 N 可能在别处被引用。implemented 记录可以刷新事实性的路径、符号和默认值，但决策一旦改变就需要新记录。归档或取代，而不是抹除。
 
-If a numbered record was created by mistake before anything cites it, removing
-it is a Git operation, not a lifecycle move: git rm it in a commit that also
-removes or updates anything citing the number, and say why in the commit
-message. The pre-commit hook flags such a removal; treat that as the moment to
-double-check nothing references it. The record survives in Git history, as
-every archived record does.
+如果一条带编号的记录是误建的、且还没有任何东西引用它，那么移除它是一次 Git 操作，不是生命周期迁移：用 git rm 移除它，并且同一个 commit 还要移除或更新所有引用该编号的地方，同时在 commit 信息里说明原因。pre-commit 钩子会对这类移除发出提醒；把这当作再次确认没有任何引用存在的时机。这条记录会留存在 Git 历史中——所有 archived 记录都是如此。
 
-The canonical header includes status, date, and created: YYYY-MM-DD (the
-birth date, never re-stamped). Numbered records declare raised-by: human | agent
-and decided-by: human | agent; these are provenance declarations, not proof
-of approval. A required description explains when to read the record; optional
-paths: [src/payments/**] scope a record to the files it governs.
+头部字段的规范格式包含 status、date 和 created: YYYY-MM-DD（created 是诞生日期，绝不重新盖章）。带编号的记录要声明 raised-by: human | agent 与 decided-by: human | agent；它们是出处声明，不是批准凭证。description 为必填，说明何时该读这条记录；可选的 paths: [src/payments/**] 把记录的作用范围限定到它管辖的文件上。
 
-Use adrkit propose for unshipped work, adrkit implement after it ships, and
-adrkit record for an already-shipped decision. Use adrkit reject with a reason
-for a proposal that will not ship. A full replacement archives the old
-implemented record through adrkit supersede; adrkit archive also retires
-implemented guidance whose rationale is no longer needed in the active set.
+未落地的工作用 adrkit propose，落地之后用 adrkit implement，已经落地的决策用 adrkit record 补记。确定不会落地的提案用 adrkit reject 并给出理由。完整替换会通过 adrkit supersede 把旧的 implemented 记录归档；adrkit archive 还可以退役那些理由已不再需要在活跃集合中保留的 implemented 指导。
 
-Run adrkit list to discover records. Read the relevant implemented/ records in
-full, check the relevant proposed/ records for intent and the rejected/ records
-for the bad cases they warn against, and consult archived/ only when a task
-cites history. Do not decide relevance by title alone; when a task targets
-specific files, adrkit relevant <path> retrieves the records scoped to them.
-For actual changes, use adrkit relevant --base <review-base> or --staged.
-Supplement scope matches with inventory reading for unscoped decisions and
-resolve incomplete-search diagnostics; no match does not mean no constraints.
-Run adrkit validate to check the repository.
+用 adrkit list 发现记录。完整阅读相关的 implemented/ 记录；检查相关的 proposed/ 记录以了解意向，检查 rejected/ 记录以了解它们所警告的反例；只有当任务引用历史时才查阅 archived/。不要只凭标题判断相关性；当任务针对具体文件时，用 adrkit relevant <path> 检索作用于这些文件的记录。针对实际改动，用 adrkit relevant --base <review-base> 或 --staged。对于未标注范围的决策，要在范围匹配之外辅以通读清单来补充，并处理搜索不完整的诊断提示；没有匹配不等于没有约束。用 adrkit validate 检查仓库。

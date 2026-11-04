@@ -1,44 +1,44 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the rail's contents, its header or footer, or the position of the rail toggle.
+description: 修改项目栏的内容、页眉或页脚，或项目栏开关按钮的位置之前请阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/ui-flow.cjs]
 ---
 
-# ADR: 19 Strip the rail to a bare list and pin the toggle to the panel corner
+# ADR: 19 把项目栏精简成素净列表，并把开关按钮钉在面板角落
 
 ## Problem
 
-The rail carried a header (caption plus a count) and a footer (two counts). Both restated data that is already on the rows or on the board: each project row shows its own working/blocked/claims/change numbers, and the content area shows the sessions and claims themselves. On a rail whose job is navigation, the header and footer were furniture. They stopped the rail from being one list.
+项目栏带着页眉（题注加计数）和页脚（两个计数）。两者都在重复行上或看板里已有的数据：每个项目行都显示自己的进行中/受阻/占用/变更数，内容区则展示会话和占用本身。在一条职责是导航的项目栏上，页眉和页脚只是摆设。它们妨碍项目栏成为一个纯粹的列表。
 
-The rail toggle had a second problem. It lived in the topbar's right edge, which is the *content's* right edge. With the rail open, that edge sits 264px away from the panel's right edge; collapsing the rail moved the button 264px to the right, so the same click could not be repeated in place. DSH does not do this: its sidebar toggle sits in the sidebar's own header and stays at the same screen position when the sidebar collapses, and the right panel's expand button behaves the same way.
+项目栏开关按钮还有第二个问题。它住在顶栏的右边缘，而那其实是*内容*的右边缘。项目栏打开时，这条边缘距离面板右边缘 264px；收起项目栏，按钮就向右移动 264px，同一个点击无法在原地重复。DSH 不这样做：它的边栏开关按钮坐在边栏自己的页眉里，边栏折叠时保持在同一屏幕位置，右面板的展开按钮也是同样的行为。
 
 ## Decision
 
-**The rail is a bare list.** No caption, no count, no footer. It is a single scrolling list of active projects, labelled for assistive technology with `aria-label="活跃项目"`.
+**项目栏是一个素净的列表。** 没有题注，没有计数，没有页脚。它就是一条独立滚动的活跃项目列表，用 `aria-label="活跃项目"` 向辅助技术标明名称。
 
-**The toggle is pinned to the panel's top-right corner.** It is absolutely positioned 14px from the top and right of the panel, 28x28, and rendered once at the root of the panel rather than inside the topbar. The rail opens with a 56px top band that matches the topbar's height and also leaves 14px of clearance under the 28px button. The list adds a 6px inset, so the first row starts 20px below the button; when the rail is closed, the topbar's action group reserves 44px on the right so the coordination switch does not collide with it. The button therefore occupies the same rectangle open or closed, so clicking twice in the same spot opens and closes the rail.
+**开关按钮钉在面板右上角。** 它绝对定位在距面板顶部和右侧各 14px 处，28x28，渲染在面板根节点，而不是顶栏内部。项目栏打开时顶部有一条 56px 的空带，与顶栏等高，同时在 28px 按钮下方留出 14px 空隙。列表再加 6px 内缩，于是第一行从按钮下方 20px 处开始；项目栏关闭时，顶栏的动作组在右侧预留 44px，以免协调开关与按钮相撞。因此按钮无论打开还是关闭都占据同一个矩形，在同一处点击两次就能开合项目栏。
 
-This is the same geometry DSH uses for its own sidebar toggle: the control is anchored to the panel edge, and the rail grows or disappears beside it.
+这正是 DSH 给自己的边栏开关按钮使用的同一套几何：控件锚定在面板边缘，项目栏在旁边生长或消失。
 
 ## Alternatives considered
 
-**Keep the caption as a list label.** One row of chrome for two words the rail does not need; the aria-label carries the name instead.
+**把题注留作列表标签。** 为了项目栏并不需要的两个词花掉一行界面元素；名称改由 aria-label 承载。
 
-**Keep the footer counts.** Rejected: they duplicate per-row numbers and made the rail look like a dashboard inside a navigation pane.
+**保留页脚计数。** 否决：它们重复了逐行的数字，还把项目栏弄得像导航面板里的一个仪表盘。
 
-**Put the toggle inside the rail header only.** That is what we had: the button jumps 264px when the rail toggles, which is exactly the travel this change removes.
+**只把开关按钮放进项目栏页眉。** 那就是此前的做法：项目栏开合时按钮跳 264px，恰恰是本次变更要消除的位移。
 
-**Keep the toggle in the topbar and let it move.** Rejected for the same reason.
+**开关按钮留在顶栏并容许它移动。** 同一原因，否决。
 
-**Collapse to an icon rail that keeps the toggle.** Rejected earlier in ADR 17: rows are text, an icon rail would show coloured dots only.
+**收起成保留开关按钮的图标栏。** 在 ADR 17 中早已否决：行是文字，图标栏只会显示彩色圆点。
 
 ## Consequences
 
-- The rail's total numbers (working sessions, claims) are no longer spelled out anywhere in the panel; the rows still show per-project numbers and the board shows the sessions and claims themselves.
-- The rail's top band is 56px of empty space whose only occupant is the pinned toggle. Matching the topbar height makes the panel's top edge read as one strip rather than an accidental gap. That is the price of keeping the button still.
-- `test/ui-flow.cjs` asserts the rail has no header or footer, that it contains only the project list, and that the toggle's bounding box is identical before and after collapsing (within 1px).
-- Narrow layout (≤700px) keeps the same rule: the rail stacks above the content and the toggle stays at the panel's top-right.
+- 项目栏的总数（进行中会话数、占用数）不再在面板任何位置明说；行上仍显示逐项目的数字，看板则展示会话和占用本身。
+- 项目栏顶部的空带是 56px 的空白，唯一的占据者就是那个钉住的开关按钮。与顶栏等高，使面板的顶边读起来是一条完整的横带，而不是无意的缝隙。这是让按钮保持不动的代价。
+- `test/ui-flow.cjs` 断言项目栏没有页眉或页脚、其中只有项目列表，且开关按钮的包围盒在收起前后完全一致（1px 以内）。
+- 窄屏布局（≤700px）沿用同一条规则：项目栏堆叠在内容上方，开关按钮留在面板右上角。

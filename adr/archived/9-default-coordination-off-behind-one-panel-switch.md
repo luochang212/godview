@@ -1,109 +1,64 @@
 ---
 status: superseded
 date: 2026-10-31
-description: Coordination is off by default and one panel switch turns it on; dormant means no board writes, no leases, and no write guard.
+description: 协调默认关闭，由一个面板开关开启，休眠意味着不写看板、没有租约、也没有写入守卫。
 raised-by: human
 decided-by: human
 created: 2026-10-30
-commit: 0a5ca5e
 paths: [packages/dsh-godview/lib/index.js, packages/dsh-godview/lib/client.js, packages/godview/lib/store.js, packages/dsh-godview/test/host-smoke.mjs, packages/dsh-godview/test/ui-flow.cjs]
 superseded-by: 20
 archived: 2026-10-31
-archive-reason: coordination is on by default (ADR 20); this record still documents what a switched-off host does
+archive-reason: 协调已默认开启（ADR 20）；本记录仍然说明协调被关闭后宿主的行为
 ---
 
-# ADR: 9 Default coordination off behind one panel switch
+# ADR: 9 协调默认关闭，由一个面板开关开启
 
-> **Superseded by [ADR 20](../implemented/20-turn-coordination-on-by-default.md) (2026-10-31):
-> coordination is on by default.** The dormant-host behavior described here still
-> governs what an explicitly switched-off host does; only the default flipped.
+> **已由 [ADR 20](../implemented/20-turn-coordination-on-by-default.md)
+> （2026-10-31）取代：协调改为默认开启。** 这里描述的休眠宿主行为仍然约束被显式关闭协调的
+> 宿主该做什么，被翻转的只是默认值。
 
 ## Problem
 
-Coordination only pays off when two or more agents share one repository. In
-practice most sessions are a single agent, and for those sessions the plugin is
-pure overhead:
+只有当两个或更多代理共享同一个仓库时，协调才有回报。实践中大多数会话只有一个代理，对这些会话而言插件纯属开销：
 
-- every write/edit pays a guard that reads the board (measured at roughly 3-5 ms
-  per write on a normal board, and higher once a few hundred lease files
-  accumulate);
-- presence heartbeats rewrite a presence file every few seconds;
-- each work burst appends a change record and timeline events nobody reads.
+- 每次 write/edit 都要经过一个读取看板的守卫（实测在普通看板上每次写入约 3-5 ms，一旦积累几百个租约文件就更高）；
+- 在线状态的心跳每隔几秒就重写一次在线状态文件；
+- 每一轮工作高峰都会追加一条变更记录和没人会读的时间线事件。
 
-The cost is small per event but permanent, and it is paid in the common case to
-protect the rare one. "Start only when a second agent shows up" does not work:
-the thing that blocks a second agent's first write is the _first_ agent's live
-lease, which must already exist. Starting at the moment the second agent appears
-is one write too late.
+单项成本虽小，却永远存在，而且是在最常见的场景里付出，只为保护罕见的那一种。"Start only when a second agent shows up" 行不通：真正挡住第二个代理首次写入的，是_第一个_代理的在线租约，它必须早已存在。等到第二个代理出现才启动，就晚了一次写入。
 
 ## Decision
 
-Coordination is off by default. Dormant means the plugin writes nothing:
-no board directory, no presence, no leases, no change records, no prompt
-context, and no write guard. It keeps two cheap things: the in-memory session
-map (so the panel can tell the human what is running) and the global project
-index (so the panel can list recent repositories).
+协调默认关闭。休眠意味着插件什么都不写：不建看板目录、不写在线状态、没有租约、没有变更记录、没有提示上下文，也没有写入守卫。它只保留两样开销很小的东西：内存会话表（让面板能告诉人类正在运行什么）和全局项目索引（让面板能列出最近的仓库）。
 
-One switch in the panel header turns coordination on. It is the only control
-the panel has, and it is global rather than per repository: it expresses "I am
-running a team now", not "this repository is special". The value lives in
-`state.json` inside the registry directory, so the CLI and every host process
-agree without a restart.
+面板顶栏上的一个开关把协调打开。它是面板唯一的控件，而且是全局的、不按仓库区分：它表达的是 "I am running a team now"，而不是 "this repository is special"。这个值存放在注册表目录内的 `state.json` 里，因此 CLI 和每个宿主进程无需重启就能达成一致。
 
-While coordination is on, the existing rules apply unchanged: auto leases on
-write/edit, the write guard, presence, the change/replay timeline, and the
-prompt context.
+协调开启期间，现有规则原样适用：write/edit 自动租约、写入守卫、在线状态、变更/回放时间线，以及提示上下文。
 
-Three boundaries are part of the decision:
+三条边界是决定的一部分：
 
-- **Turning it on mid-flight is accepted.** Work already in progress is not
-  back-claimed and past overlaps are not detected. Protection starts at the next
-  write. This is stated in the panel instead of hidden.
-- **Turning it off releases the auto leases this host holds** and leaves the
-  recorded history untouched but frozen.
-- **It never turns itself on.** When the host sees more than one session while
-  coordination is off, the panel says so; the human decides.
+- **允许在中途开启。** 已在进行的工作不会被补取占用，过去的重叠也不去追溯检测。保护从下一次写入开始。这一点在面板里明说，而不是藏着。
+- **关闭时释放本宿主持有的自动租约**，已记录的历史原样保留但被冻结。
+- **它绝不会自己打开。** 当协调处于关闭状态而宿主看到不止一个会话时，面板会说出来，由人类决定。
 
-This amends [ADR 5](../implemented/5-keep-the-board-to-one-read-only-screen-and-three-concepts.md)
-in exactly one place: the panel may carry one mode control. It stays read-only
-otherwise. It has no data input, no composer, no reply box, and no question queue.
+这修订 [ADR 5](../implemented/5-keep-the-board-to-one-read-only-screen-and-three-concepts.md) 的恰好一处：面板可以携带一个模式控件。除此之外它仍是只读的。它没有数据输入，没有撰写框、回复框或提问队列。
 
 ## Alternatives considered
 
-- **Auto-start when a second session appears.** Rejected: the first agent's live
-  lease is what protects the second agent's first write, so starting late
-  protects only after the collision it exists to prevent.
-- **An automatic "solo" mode that records leases but no history.** Rejected:
-  deciding "solo" correctly means knowing about leases created by other
-  processes, and a wrong guess silently drops history for everyone. A human
-  switch answers the same question without the guesswork.
-- **Per-repository switch.** Rejected: more precise but it multiplies the number
-  of places a human must remember, which is the failure mode a default-off
-  feature cannot afford.
-- **A config-only switch that needs a host restart.** Rejected: the human decides
-  while looking at the panel, and a restart is not a switch.
-- **Keep presence alive while dormant.** Rejected: half-on states are hard to
-  reason about. Dormant is verifiable by one rule: no board writes.
+- **第二个会话出现时自动启动。** 否决：保护第二个代理首次写入的正是第一个代理的在线租约，启动晚了，就只能在它本要防止的冲突发生之后才起作用。
+- **只记录租约、不记录历史的自动 "solo" 模式。** 否决：要正确判定 "solo"，就得知道其他进程创建的租约，而猜错会替所有人悄无声息地丢掉历史。一个人类操作的开关回答的是同一个问题，却不用猜。
+- **按仓库设置开关。** 否决：更精确，但人类需要记住的地方成倍增加，而这是默认关闭的功能负担不起的失败模式。
+- **只能靠配置修改、需要重启宿主的开关。** 否决：人类是看着面板做决定的，而重启不算一个开关。
+- **休眠期间继续维持在线状态。** 否决：半开状态难以推理。休眠用一条规则即可验证：不写看板。
 
 ## Consequences
 
-Single-agent sessions cost nothing and edits are never delayed by the guard,
-which is what the switch was built for.
+单代理会话毫无成本，编辑永远不会被守卫拖延，这正是这个开关被造出来的原因。
 
-The cost is discoverability: with nothing on by default, someone running their
-first parallel batch may not know the switch exists. The panel's "N sessions are
-running but coordination is off" line is the only safety net, and it only helps
-someone who opens the panel.
+代价是可发现性：默认什么都不开启，第一次跑并行批次的人可能不知道开关的存在。面板上 "N sessions are running but coordination is off" 那一行是唯一的安全网，而且只对打开了面板的人有用。
 
-Default-off also means the panel is empty on a fresh install until coordination
-has been enabled at least once. The project rail, fed by the registry, is what
-makes the switch reachable.
+默认关闭还意味着：新安装的面板在协调至少被开启过一次之前是空的。项目栏由注册表供稿，正是它让开关变得可及。
 
-Host and client can be briefly out of step: `client.js` is served from disk on
-refresh while `lib/index.js` needs a host restart. The client therefore treats a
-missing coordination route as "unavailable" and disables the switch instead of
-failing the whole panel.
+宿主和客户端可能短暂脱节：`client.js` 在刷新时从磁盘加载，而 `lib/index.js` 需要重启宿主。因此客户端把缺失的协调路由当作 "unavailable"，禁用开关，而不是让整个面板出错。
 
-Tests pin the three states: `test/host-smoke.mjs` covers dormant (nothing
-written, nothing blocked), enabled (leases and guard), and the HTTP toggle;
-`test/ui-flow.cjs` asserts the panel exposes exactly one switch.
+测试钉住了三种状态：`test/host-smoke.mjs` 覆盖休眠（什么都不写、什么都不挡）、开启（租约与守卫）以及 HTTP 切换；`test/ui-flow.cjs` 断言面板恰好只暴露一个开关。

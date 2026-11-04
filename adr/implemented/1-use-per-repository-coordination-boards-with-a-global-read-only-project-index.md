@@ -1,47 +1,47 @@
 ---
 status: implemented
 date: 2026-10-30
-description: Read when changing claim scope, project discovery, or any behavior that crosses repository boundaries.
+description: 改动占用范围、项目发现机制或任何跨仓库行为之前先阅读本记录。
 raised-by: agent
 decided-by: human
 created: 2026-10-30
 paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/dsh-godview/lib/client.js]
 ---
 
-# ADR: 1 Use per-repository coordination boards with a global read-only project index
+# ADR: 1 使用按仓库的协调看板与全局只读项目索引
 
 ## Problem
 
-Agents can work in different DSH sessions and different repositories at the same time. A single board would make unrelated repositories contend for the same namespace, and a single global lock would block parallel work that cannot actually conflict. At the same time, the sidebar needs to answer "which projects are active right now?" without requiring the user to know every repository path in advance.
+agent 可以同时在不同的 DSH 会话和不同的仓库中工作。单一看板会让互不相关的仓库争用同一个命名空间，而单一全局锁又会阻塞那些实际上不可能冲突的并行工作。同时，侧栏需要回答「当前哪些项目是活跃的?」，又不要求用户提前知道每个仓库的路径。
 
-The board therefore has to be both repository-local for correctness and globally discoverable for observability.
+因此，看板必须既在仓库内本地化以保证正确性，又全局可发现以支持可观测性。
 
 ## Decision
 
-Each repository owns its coordination state under .dsh/parallel. Presence, claims, changes, and timelines are read and written only against that repository's board.
+每个仓库在 .dsh/parallel 下拥有自己的协调状态。在线状态、占用、变更和时间线的读写都只针对该仓库自己的看板。
 
-The host resolves a board root from each agent's session cwd. config.root is empty by default; when set, it forces all sessions onto one repository and is reserved for single-repository debugging. A write guard on one repository never consults another repository's claims.
+宿主从每个 agent 的会话 cwd 解析出看板根目录。config.root 默认为空，一旦设置，它会把所有会话强制归到同一个仓库，仅供单仓库调试使用。一个仓库上的写入守卫从不查询另一个仓库的占用。
 
-A global index at ~/.dsh/parallel/projects.json stores only root, name, and lastSeenAt. GET /projects merges the host's known roots with this index, computes a summary from each board, and sorts by last activity. The UI's project rail is a navigation layer over these summaries; selecting a project changes which board is read, never which board is written.
+位于 ~/.dsh/parallel/projects.json 的全局索引只存储 root、name 和 lastSeenAt。GET /projects 把宿主已知的根目录与该索引合并，从每个看板计算摘要，并按最后活跃时间排序。UI 的项目栏是覆盖在这些摘要之上的导航层，选择某个项目改变的只是读取哪个看板，永远不会改变写入哪个看板。
 
-There is no cross-project lease and no global lock. Repository boundaries define the coordination boundary.
+不存在跨项目租约，也不存在全局锁。仓库边界就是协调边界。
 
 ## Alternatives considered
 
-**One global board and one global lock.** This makes cross-repository conflicts impossible in theory, but it serializes unrelated work, mixes claims with the same relative paths in different repositories, and turns a small local board into a daemon-wide coordination service. The actual collision domain is a repository, so this costs far more than it protects.
+**一个全局看板加一把全局锁。** 这在理论上能让跨仓库冲突不可能发生，但它会把无关的工作串行化，把不同仓库中相同相对路径的占用混在一起，并把一个小型本地看板变成守护进程级的协调服务。实际的冲突域是仓库，所以这样付出的代价远大于它提供的保护。
 
-**Per-repository boards without a global index.** This is correct for claims but fails observability: a user cannot find recent projects without remembering each path. The index is the smallest addition that restores discovery without becoming a second source of truth.
+**按仓库的看板，不要全局索引。** 这对占用是正确的，但在可观测性上失败：用户如果不记住每个路径，就找不到最近的项目。全局索引是最小的补充，它恢复了可发现性，又不会变成第二个真相来源。
 
-**Scan the filesystem for every .dsh/parallel board.** This would discover unopened projects, but turns page load into an unbounded filesystem walk and makes the result dependent on disk layout and permissions. Tracking roots and an explicit recent-project registry is predictable.
+**扫描文件系统，找出所有 .dsh/parallel 看板。** 这能发现从未打开过的项目，但会把页面加载变成一次无界的文件系统遍历，结果还取决于磁盘布局和权限。跟踪根目录并维护一份显式的最近项目注册表更可预测。
 
-**A global project switcher with merged claims.** Merging claims would make the rail look complete while destroying the guarantee that a claim in one repository cannot block another. Summaries are deliberately aggregate-only.
+**带合并占用的全局项目切换器。** 合并占用会让项目栏看起来完整，却破坏了「一个仓库中的占用不可能阻塞另一个仓库」这一保证。摘要被刻意设计为只做聚合。
 
 ## Consequences
 
-Different repositories can proceed in parallel, and a crash or stale claim is contained to one repository. The cost is that cross-repository file collisions are not prevented; they are outside the coordination boundary.
+不同的仓库可以并行推进，崩溃或过期占用都被限制在单个仓库之内。代价是跨仓库的文件冲突不受阻止，它们位于协调边界之外。
 
-The project list contains only roots tracked by the host or present in the global registry. A project never opened with the plugin does not appear. Registry entries can outlive their sessions, so the UI must show last activity rather than treating presence in the list as proof of current work.
+项目列表只包含宿主跟踪的或存在于全局注册表中的根目录。从未用该插件打开过的项目不会出现。注册表条目可以比其会话活得更久，所以 UI 必须展示最后活跃时间，而不是把出现在列表里当作当前正在工作的证据。
 
-Each board remains the source of truth. Summaries are recomputed from board files, and there is no second writable copy of claims or timelines. Worktrees remain separate boards because their absolute roots differ.
+每个看板仍是唯一真相来源。摘要都从看板文件重新计算，占用和时间线不存在第二份可写副本。worktree 依然是独立的看板，因为它们的绝对根目录不同。
 
-The index is capped and local to the machine. It is not a remote catalog, and it does not merge history across repositories.
+索引有容量上限，且只存在于本机。它不是远程目录，也不合并跨仓库的历史。

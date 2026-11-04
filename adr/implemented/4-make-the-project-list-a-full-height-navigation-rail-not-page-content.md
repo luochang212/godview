@@ -1,58 +1,57 @@
 ---
 status: implemented
 date: 2026-10-30
-description: Read when changing the project switcher, panel layout, or the relationship between project navigation and project detail.
+description: 改动项目切换器、面板布局，或项目导航与项目详情之间的关系之前先阅读本记录。
 raised-by: human
 decided-by: human
 created: 2026-10-30
 paths: [packages/dsh-godview/lib/client.js]
 ---
 
-# ADR: 4 Make the project list a full-height navigation rail, not page content
+# ADR: 4 把项目列表做成全高导航项目栏，而不是页面内容
 
-> **Partly superseded by [ADR 15](15-compose-the-content-area-as-two-section-cards-on-a-tinted-page.md),
-> [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md), and
+> **被 [ADR 15](15-compose-the-content-area-as-two-section-cards-on-a-tinted-page.md)、
+> [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md) 和
 > [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
-> (2026-10-31).** The rail now sits on the right, collapses to zero, carries no
-> header/footer or per-project footer counts, and marks the selected row with the
-> host `bg-multi-select` fill instead of a left marker. Treat the shipped client
-> CSS as the reference for the narrow-screen layout.
+> （2026-10-31）部分取代。** 项目栏现在位于右侧，可折叠为零，不再带有
+> 头部/底部栏或逐项目的底部计数，选中行改用宿主的 `bg-multi-select`
+> 填充色，而不是左侧标记。窄屏布局以实际发布的 client CSS 为参考。
 
 ## Problem
 
-The first multi-project UI stacked project cards above the selected project's Sessions and Gantt. With five projects, the cards consumed roughly a fifth of the viewport and pushed the Gantt below the fold. The cards also gave navigation the visual weight of content, and the rail looked floating because it ended after the last project even when the detail pane continued.
+第一版多项目 UI 把项目卡片堆叠在所选项目的会话区和甘特图之上。五个项目时，卡片大约吃掉五分之一的视口，把甘特图挤到了首屏之外。卡片还让导航占了内容的视觉分量，而项目栏看起来悬空，因为即使详情面板还在往下延伸，它在最后一个项目后就结束了。
 
-The project list is a switcher. It should not compete with the selected project for vertical space.
+项目列表是一个切换器。它不应该与选中的项目争夺纵向空间。
 
 ## Decision
 
-The panel is a two-pane master-detail layout:
+面板是双栏的主从布局：
 
-- a 220px project rail on the left, sticky and full height;
-- a detail pane on the right for the selected project.
+- 左侧 220px 的项目栏，sticky 且全高；
+- 右侧是展示选中项目的详情面板。
 
-The rail is a vertical flex column: header, project list, footer. The project list flexes and scrolls independently; the footer stays at the bottom and shows the selected project's active-session and files-in-use counts. The sidebar border runs the full height of the layout, so the rail does not float or stop after the last project.
+项目栏是一个纵向 flex 列：头部、项目列表、底部栏。项目列表独立伸缩和滚动，底部栏固定在底端，显示所选项目的活跃会话数和在用文件数。侧栏边框贯穿整个布局的高度，所以项目栏不会悬空，也不会在最后一个项目后就中断。
 
-Project rows are compact navigation buttons: status dot, name, active/claims/active-change counts, last activity. They are not content cards. The selected row uses a left marker and a subtle background.
+项目行是紧凑的导航按钮：状态点、名称、活跃/占用/进行中变更计数、最后活动时间。它们不是内容卡片。选中行使用左侧标记和浅淡的背景。
 
-On narrow screens the rail becomes a horizontal scrollable list above the detail pane. The panel remains read-only; project rows are navigation and Refresh is the only action button.
+在窄屏上，项目栏变成详情面板上方的横向可滚动列表。面板保持只读，项目行是导航，Refresh 是唯一的操作按钮。
 
 ## Alternatives considered
 
-**Keep the top card list.** It is simple at three projects, but it consumes vertical space, scales poorly, and treats navigation as content. The user explicitly asked for a sidebar.
+**保留顶部的卡片列表。** 三个项目时它很简单，但它消耗纵向空间、扩展性差，还把导航当成了内容。用户明确要求一个侧栏。
 
-**A dropdown or select.** It saves space but hides the status, claim counts, and last activity that make the project overview useful. It also adds a form control to a read-only panel.
+**下拉框或 select。** 它省空间，却藏起了恰恰让项目概览有用的东西：状态、占用计数和最后活动时间。它还往只读面板里加了一个表单控件。
 
-**Tabs.** Tabs are for views over one object, not for a growing set of projects. They hide status and overflow quickly.
+**选项卡。** 选项卡适合同一个对象的多个视图，不适合不断增长的项目集合。它们会隐藏状态，而且很快溢出。
 
-**Put projects in the DSH global sidebar.** This would mix workspaces and sessions with plugin state, and the plugin currently registers one sidebar panel entry. A secondary rail inside the panel keeps the plugin's navigation scoped and reversible.
+**把项目放进 DSH 全局侧栏。** 这会把工作区、会话和插件状态混在一起，而插件目前只注册一个侧栏面板入口。面板内部的次级项目栏让插件的导航保持在自身作用域内，且可回退。
 
-**A content-height rail.** A short rail that ends after the last row looks detached from the detail pane. The full-height rail with a bottom footer is the stable layout.
+**内容高度的项目栏。** 一个在最后一行后就结束的矮项目栏，看起来与详情面板脱节。带底部栏的全高项目栏才是稳定的布局。
 
 ## Consequences
 
-The detail pane loses 220px of horizontal width, so the Gantt is narrower than in a full-width layout. Project names and counts are truncated in the rail; the full path and last summary live in the row tooltip and the detail header.
+详情面板损失了 220px 的水平宽度，所以甘特图比全宽布局更窄。项目名和计数在项目栏里会被截断，完整路径和最后摘要放在行悬停提示和详情头部里。
 
-The rail's empty space below the project list is intentional: it is a navigation surface, not a content list. The footer anchors the selected project's state at the bottom and keeps the rail visually grounded.
+项目栏在项目列表下方留出的空白是刻意的：它是导航面，不是内容列表。底部栏把所选项目的状态锚定在底端，让项目栏在视觉上有所依托。
 
-At narrow widths the horizontal fallback avoids a 220px fixed column. Tests must continue to assert zero inputs/selects/textareas and keep project rows as buttons. The screenshot should be refreshed when this layout changes.
+在窄屏宽度下，横向回退布局避免了 220px 的固定列。测试必须继续断言 inputs/selects/textareas 数量为零，并保持项目行为按钮。这一布局变更时应刷新截图。

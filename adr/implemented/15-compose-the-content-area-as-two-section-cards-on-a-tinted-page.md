@@ -1,47 +1,47 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the content area's surfaces. Those surfaces are the section cards, their headers, row dividers, page tint, and the brand tile.
+description: 修改内容区的各个表面时阅读。这些表面指分区卡片、卡片头部、行分隔线、页面色调与品牌块。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
-# ADR: 15 Compose the content area as two section cards on a tinted page
+# ADR: 15 在带色调的页面上用两张分区卡片组织内容区
 
-> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
-> (2026-10-31).** The two section cards with in-card headers and hairline rows remain; the tinted page and the rail's brand tile are gone — the page is the host's plain `bg-base` and the brand mark no longer appears in the rail.
+> **被 [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> （2026-10-31）部分取代。** 两张带卡片内头部与发丝分隔行的分区卡片保留，带色调的页面和项目栏的品牌块已移除——页面现在是宿主朴素的 `bg-base`，品牌标记也不再出现在项目栏里。
 
 ## Problem
 
-After the event list went away (ADR 14) the content area held two things: the session list and the Gantt. Both were styled as their own bordered boxes. Every session row was a 1px outlined card, and the Gantt was another. Their section headings floated above them, outside anything. On a white page with no shadows, that read as a pile of outlined widgets rather than a composed screen, and the whiteness made the page feel unfinished even when it was full.
+事件列表移除之后（ADR 14），内容区只剩两样东西：会话列表和甘特图。两者都被做成了各自带边框的盒子：每一行会话是一张 1px 描边的卡片，甘特图是另一张。分区标题悬浮在它们上方，不属于任何东西。在没有阴影的白色页面上，这看起来像一堆描边控件的堆叠，而不是一张组织完成的界面，即便页面已经填满，大片白色也让人觉得尚未完工。
 
-The reference layout (ml-auto) gets its weight from a tinted page with white cards: hairline border, 12px radius, a very soft shadow, and a table-card that owns its header.
+参照布局（ml-auto）的分量感来自带色调的页面配白色卡片：发丝级边框、12px 圆角、非常柔和的阴影，以及一张把头部收在自己内部的表格卡片。
 
 ## Decision
 
-The content area is two cards on a tinted page.
+内容区是带色调页面上的两张卡片。
 
-- **Page**: the content surface is `color-mix(bg-base 97%, label-primary 3%)`, which is a near-white grey in light and a slightly lifted dark in dark (overridden to plain `bg-base` when the host sets its dark attribute). The rail keeps its own 96/4 tint, so the page, the rail, and the cards are three distinct tones.
-- **Card**: `bg-base` in light, `color-mix(bg-base 94%, label-primary 6%)` in dark (that is the host's own layer-1 tone), radius 12 (`--pt-radius-md`), and `var(--dsw-elevation-soft)` for the hairline stroke and shadow. No 1px border: the elevation token already carries a 0.5px stroke, and stacking both is what made the old boxes look heavy.
-- **Card head**: uppercase micro-label with its icon, a tabular count, and an optional right-aligned hint ("悬停看精确时间"). A 1px `border-l1` divider closes the head.
-- **Rows**: no individual border, background or radius. Rows are separated by `border-l1` hairlines; the first row has none. 16px horizontal padding throughout, 10px vertical.
-- **Empty states**: a card with no rows shows one muted line inside it, never a bare box. A board with no active project still renders no cards at all (ADR 11).
-- **Brand tile**: 36px, radius 10, accent tint at 13%, `elevation-soft` instead of a 1px border, glyph at 20px.
+- **页面**：内容表面使用 `color-mix(bg-base 97%, label-primary 3%)`，在浅色模式下是接近白色的灰，在深色模式下是略微提亮的深色（宿主设置其 dark 属性时改回朴素的 `bg-base`）。项目栏保留自己 96/4 的色调，于是页面、项目栏和卡片构成三种彼此区分的层次。
+- **卡片**：浅色模式用 `bg-base`，深色模式用 `color-mix(bg-base 94%, label-primary 6%)`(即宿主自己的 layer-1 色调)，圆角 12(`--pt-radius-md`)，发丝描边与阴影用 `var(--dsw-elevation-soft)`。不再加 1px 边框：elevation token 本身已带 0.5px 描边，两者叠加正是旧盒子显得笨重的原因。
+- **卡片头部**：全大写的微型标签配图标、一个等宽数字的计数，以及可选的右对齐提示（"悬停看精确时间"）。头部以一条 1px `border-l1` 分隔线收尾。
+- **行**：单行不再有各自的边框、背景或圆角。行与行之间用 `border-l1` 发丝线分隔，第一行没有。横向 padding 一律 16px，纵向 10px。
+- **空状态**：没有行的卡片在卡片内显示一行暗淡文字，绝不裸露一个空盒子。没有活跃项目的看板依然完全不渲染卡片（ADR 11）。
+- **品牌块**：36px，圆角 10,13% 的强调色色调，用 `elevation-soft` 取代 1px 边框，内部图形 20px。
 
 ## Alternatives considered
 
-**Keep per-row cards and only add elevation (option B).** Rejected: it keeps two card vocabularies on one page and the page still reads as stacked widgets.
+**保留逐行卡片，只增加 elevation(方案 B)。** 已否决：一页上会同时留着两套卡片语言，页面看起来仍是控件的堆叠。
 
-**One card containing both sections (option C).** Rejected: it hides the two distinct concepts (who is working, what they hold) behind one frame, and there is no second surface to compare against on an otherwise sparse page.
+**用一个卡片包住两个分区（方案 C）。** 已否决：它把两个不同的概念（谁在干活、他们持有什么）藏进同一个边框后面，而在本已稀疏的页面上也没有第二个表面可供对照。
 
-**Heavier light-mode shadow.** Rejected: DSH's light theme is deliberately flat (`rgba(0,0,0,.03–.08)`); a custom shadow would look foreign next to the host's own panels.
+**在浅色模式使用更重的阴影。** 已否决：DSH 的浅色主题刻意保持扁平(`rgba(0,0,0,.03–.08)`)；自定义阴影与宿主自己的面板放在一起会显得格格不入。
 
 ## Consequences
 
-- The page now has a surface hierarchy (rail → page → card) instead of a single white field, so the two cards carry the composition.
-- Card separation depends on the host's dark attribute being present. If it is missing, dark mode falls back to `bg-base` cards on the tinted page: slightly darker than the page, still legible through the stroke.
-- `--pt-radius-md` moves from 10px to 12px, matching the host's radius scale; small controls keep their own radii.
-- Rows lost their boxes, so the session list reads as a table rather than a stack of chips; row height is stable (10px padding + two text lines).
-- `test/client-locale.test.mjs` asserts a populated board renders `pt-card` and a blank board renders none, so the empty-page rule keeps its guard.
+- 页面现在有了表面层次（项目栏 → 页面 → 卡片），而不是一片纯白，构图因此由两张卡片承担。
+- 卡片与页面的分离依赖宿主的 dark 属性存在。若缺失，深色模式会退化为带色调页面上的 `bg-base` 卡片：比页面略暗，但凭借描边仍然可辨。
+- `--pt-radius-md` 从 10px 变为 12px，与宿主的圆角尺度一致，小型控件保留各自的圆角。
+- 行去掉了各自的盒子，会话列表因此读起来像表格而不是一堆胶囊，行高保持稳定（10px padding + 两行文字）。
+- `test/client-locale.test.mjs` 断言：有内容的看板会渲染 `pt-card`，空白看板一个都不渲染，因此空白页规则保有自己的守卫。

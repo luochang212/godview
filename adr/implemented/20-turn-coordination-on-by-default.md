@@ -1,43 +1,43 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the coordination default, the switch semantics, or what a dormant host writes.
+description: 修改协调默认值、开关语义，或休眠宿主会写入的内容之前请阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/godview/test/store.test.mjs, packages/dsh-godview/test/host-smoke.mjs, docs/protocol.md]
 ---
 
-# ADR: 20 Turn coordination on by default
+# ADR: 20 协调功能默认开启
 
 ## Problem
 
-ADR 9 shipped coordination off by default. Its reasoning was cost: most sessions are one agent, and a dormant host pays nothing. That reasoning holds for the average session and fails for the one that matters.
+ADR 9 发布时协调默认关闭。它的理由是成本：多数会话只有一个 agent，休眠的宿主分毫不付。这套推理对普通会话成立，却在真正要紧的那种会话上失败。
 
-The failure mode is a race at the start. Two agents open the same repository and start editing before anyone opens the panel. Neither holds a lease, so neither is protected, and the first collision, a silent overwrite, happens before a human could have flipped a switch. A default that protects only after someone remembers to opt in protects the wrong case.
+失败模式是开局的竞争。两个 agent 打开同一个仓库，在任何人打开面板之前就开始编辑。谁都不持有租约，所以谁都不受保护，而第一次冲突——一次静默的覆盖——在人来得及拨动开关之前就已经发生。只有当有人想起开启之后才提供保护的默认值，保护错了对象。
 
-The human's own view is that coordination should be off most of the time (they said roughly 80%), but that this is a decision to make per situation, not a default to ship. Starting on makes silence a deliberate act; starting off makes protection a deliberate act, and the cost of forgetting protection is a lost file.
+人自己的看法是：协调大多数时候应该关闭（他说大约 80%），但这是按情况逐次做出的决定，不是随产品发布的默认值。默认开启，让保持安静成为一个有意的动作；默认关闭，让获得保护成为一个有意的动作，而忘记保护的代价是一个丢失的文件。
 
 ## Decision
 
-Coordination is on by default. `readCoordination` treats a missing or unreadable `state.json` as on; only an explicit `{ "enabled": false }` turns it off. Every other mechanism is unchanged: the one switch in the panel header, the lease/write guard, presence, the timeline, and the prompt context.
+协调默认开启。`readCoordination` 把缺失或不可读的 `state.json` 视为开启；只有显式的 `{ "enabled": false }` 才会关闭。其他机制一律不变：面板页眉里的那一个开关、租约/写入守卫、在线状态、时间线和提示上下文。
 
-The switch never flips itself. A human turns it off when the work is solo, and the choice persists in the registry directory until they turn it back on.
+开关永远不会自己翻转。独自作业时由人来关闭，这个选择保存在注册表目录里，直到他们重新打开。
 
 ## Alternatives considered
 
-**Keep the off default and make turning it on easier.** Rejected: there is nothing easier than a switch that is already on; the problem is not discoverability, it is the window before anyone looks.
+**保留关闭默认值，把开启做得更容易。** 否决：没有什么比本就开启的开关更容易；问题不在可发现性，而在任何人看向它之前的那段窗口期。
 
-**Turn it on automatically when a second session appears.** Rejected in ADR 9 and still rejected: the first agent's live lease is what protects the second agent's first write, so starting at the second session is one write too late.
+**出现第二个会话时自动开启。** ADR 9 已否决，现在仍然否决：保护第二个 agent 首次写入的，正是第一个 agent 活着的租约；到第二个会话才开启，已经晚了一次写入。
 
-**Default per repository, off until the repository is seen twice.** Rejected: it silently changes behaviour based on history, and the first parallel run in a fresh repository is exactly the unprotected case again.
+**按仓库设置默认值，仓库被看到两次之前保持关闭。** 否决：它基于历史悄悄改变行为，而新仓库里的第一次并行运行恰恰又是不受保护的情形。
 
-**Prompt on first session.** Rejected: a control that appears mid-work, and a question the user has to answer before they know whether they need it.
+**首个会话时弹出询问。** 否决：一个在作业中途冒出来的控件，一个用户还没搞清楚自己是否需要就必须回答的问题。
 
 ## Consequences
 
-- Every repository a session touches now gets a `.dsh/parallel` board with presence and change records by default. That is the cost of the safe default; it is small (a few JSON files) and the user can delete the board when no agents run.
-- A user who wants the old silence turns the switch off once; the setting is global and persists.
-- An existing `state.json` with `enabled: false` keeps a machine off. Deleting the file returns it to the new default.
-- Tests flipped: the store test now asserts the default is on and that unreadable state reads as on; the host smoke test switches off explicitly before exercising the dormant path.
-- README, AGENTS, protocol, package.json, and the GitHub description all state the new default; ADR 9's mechanism survives, its default does not.
+- 会话经过的每个仓库现在都会默认得到一个带在线状态和变更记录的 `.dsh/parallel` 看板。这是安全默认值的代价；它很小（几个 JSON 文件），没有 agent 运行时用户可以删掉看板。
+- 想要往日安静的用户关闭一次开关即可；该设置是全局的，并且会持续保留。
+- 已存在的、`enabled: false` 的 `state.json` 会让一台机器保持关闭。删掉该文件就回到新的默认值。
+- 测试随之翻转：store 测试现在断言默认为开启，且不可读的状态读作开启；宿主 smoke 测试会先显式关闭，再走休眠路径。
+- README、AGENTS、protocol、package.json 和 GitHub 描述都写明了新的默认值；ADR 9 的机制保留了下来，它的默认值没有。

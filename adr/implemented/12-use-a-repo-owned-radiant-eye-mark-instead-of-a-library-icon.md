@@ -1,48 +1,48 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the panel's brand mark, its sizes, or the icons used in the rail and sidebar entry.
+description: 修改面板的品牌图形标记、其尺寸，或项目栏与侧边栏入口所用图标前先阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
-# ADR: 12 Use a repo-owned radiant-eye mark instead of a library icon
+# ADR: 12 使用仓库自有的放射之眼图形标记，而不是库图标
 
-> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
-> (2026-10-31).** The mark is no longer in the rail. It appears on the host sidebar
-> entry (18px) and on the blank page (26px); the rail carries no brand block.
+> **被 [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> （2026-10-31）部分取代。** 图形标记已不在项目栏中。它出现在宿主侧边栏入口（18px）与空白页
+> (26px)上，项目栏不再承载品牌区块。
 
 ## Problem
 
-The rail's brand tile borrowed lucide's `eye`. It worked, but it is the same glyph a thousand applications use, and it says "view" rather than "watch over everything, from above". The reference layout (ml-auto) gets its character from a single, well-chosen mark: lucide's `Lighthouse` at 22px inside an accent-tinted square. That character does not come from the decorative container.
+项目栏的品牌方块借用了 lucide 的 `eye`。它可用，但那是上千个应用都在用的同一个图形，说的是 "view" 而不是 "watch over everything, from above"。参照布局（ml-auto）的气质来自一个精心挑选的单一标记：强调色底方块里 22px 的 lucide `Lighthouse`。而这种气质并不来自那个装饰性的容器。
 
-The mark has to survive 18px (sidebar entry), 19px (rail brand tile) and 26px (blank page), in both host themes, with no build step and no new dependency.
+这个标记必须扛得住 18px(侧边栏入口)、19px(项目栏品牌方块)和 26px(空白页)，在宿主的两种主题下都成立，且不引入构建步骤和新的依赖。
 
 ## Decision
 
-The panel ships its own mark: the radiant eye. A lens ring, a pupil, and eight radiating strokes, drawn on the same 24x24 grid as the lucide icons around it, with a 1.7 stroke and round caps.
+面板随附自己的标记：放射之眼。一圈透镜圆环、一个瞳孔，外加八条向外辐射的笔画，画在与周围 lucide 图标相同的 24x24 网格上，笔画宽度 1.7，端点取圆。
 
-Geometry, for whoever edits it next: ring `r=4.4`, pupil `r=1.4`, rays from `r=8.2` to `r=10.6` at the eight compass points, stroke extends to 11.45 so nothing touches the 24 box. The ring-to-ray gap (2.3 units) and the ray length (2.4 units) are the two numbers that keep it from turning into a blob at 19px; changing the ray count or lengthening strokes means re-checking the small sizes.
+几何参数，留给下一个改动它的人：圆环 `r=4.4`，瞳孔 `r=1.4`，射线沿八个罗盘方位从 `r=8.2` 延伸到 `r=10.6`，笔画外沿到 11.45，因此没有任何东西碰到 24 的方框。环与射线的间距（2.3 个单位）和射线长度（2.4 个单位）这两个数字，决定了它在 19px 下不会糊成一团，改动射线数量或加长笔画，就意味着要重新检查小尺寸下的效果。
 
-It is used in exactly three places, all through one component: the rail brand tile (19px), the sidebar entry (18px), and the blank page (26px).
+它恰好在三个地方使用，都通过同一个组件：项目栏品牌方块（19px）、侧边栏入口（18px）和空白页（26px）。
 
 ## Alternatives considered
 
-**Keep lucide's eye.** Rejected: generic, and it reads as "view" instead of "oversight".
+**保留 lucide 的 `eye`。** 否决：太过通用，读起来是 "view" 而不是 "oversight"。
 
-**Use lucide's Lighthouse, like the reference.** Rejected after trying it: the reference already owns that mark, and a lighthouse says "navigation aid" where this panel is about who is working where. Borrowing the exact icon from the page we borrowed the layout from would make the resemblance the point.
+**照参照用 lucide 的 `Lighthouse`。** 试过之后否决：参照已经拥有那个标记，而且灯塔说的是 "navigation aid"，这个面板讲的却是谁在何处工作。从借来布局的那个页面原样借图标，会让雷同本身成为重点。
 
-**A religious mark (cross, church, angel, halo).** Considered and offered in a picker: too narrow for a tool that is not religious, and it fights the restrained shell.
+**宗教性标记（十字架、教堂、天使、光环）。** 考虑过，也放进过选择器：对一个与宗教无关的工具来说太窄，而且与克制的外壳相抵触。
 
-**The radiation trefoil.** Rejected: reads as hazard, not oversight.
+**辐射三叶标。** 否决：读起来是危险，而不是监察。
 
-**Filled or two-tone mark.** Rejected: every neighbouring icon is a 1.7-2px outline; a filled tile would outweigh the whole rail.
+**实心或双色标记。** 否决：相邻图标全是 1.7-2px 的线条轮廓，一块实心图形在视觉重量上会压过整条项目栏。
 
 ## Consequences
 
-- The mark is repo-owned: no attribution, no icon dependency, and it can be tuned for the rail without waiting on an upstream library.
-- Ink density at 19px measures 32.1%, identical to the lucide eye it replaces, so the rail's visual weight does not change.
-- It is not a lucide icon and should not be described as one. `test/client-locale.test.mjs` asserts the mark is present in the rail and on the blank page and that it keeps eight rays, so a silent swap back to a library glyph fails the suite.
-- The icon picker used to choose it was a throwaway page under `screenshots/local/`; it is not part of the product.
+- 标记归仓库自有：无需署名，没有图标依赖，可以为项目栏单独调校，不必等上游库。
+- 19px 下的墨迹密度实测 32.1%，与它取代的 lucide `eye` 完全一致，因此项目栏的视觉重量不变。
+- 它不是 lucide 图标，也不应被描述成 lucide 图标。`test/client-locale.test.mjs` 断言该标记出现在项目栏与空白页上、并保持八条射线，所以悄悄换回库图形的改动会让测试套件失败。
+- 当初用来挑选它的图标选择器是 `screenshots/local/` 下的一个一次性页面，它不是产品的一部分。

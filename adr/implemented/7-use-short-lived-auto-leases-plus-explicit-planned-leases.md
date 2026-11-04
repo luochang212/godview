@@ -1,49 +1,49 @@
 ---
 status: implemented
 date: 2026-10-30
-description: Read when changing lease acquisition, renewal, release, expiry, or write-guard behavior.
+description: 修改租约获取、续租、释放、过期或写入守卫行为之前请阅读。
 raised-by: agent
 decided-by: human
 created: 2026-10-30
 paths: [packages/godview/lib/store.js, packages/dsh-godview/lib/index.js, packages/godview/bin/godview.mjs]
 ---
 
-# ADR: 7 Use short-lived auto leases plus explicit planned leases
+# ADR: 7 采用短时效自动租约加显式计划租约
 
-> **Amended by [ADR 22](22-keep-exactly-one-write-guard-policy-auto.md):** the `claimPolicy` knob is gone. The auto behavior described below is the only policy; `require`, `advisory`, and `off` no longer exist. The auto/explicit lease mechanics remain as decided here.
+> **由 [ADR 22](22-keep-exactly-one-write-guard-policy-auto.md) 修订：** `claimPolicy` 开关已经移除。下文描述的 auto 行为是唯一策略；`require`、`advisory` 和 `off` 不复存在。自动/显式租约机制仍按本记录的决定保留。
 
 ## Problem
 
-File coordination has two failure modes. Without leases, two agents can write the same path at the same time. With permanent or manually managed leases, a crashed or forgetful agent leaves a lock that blocks everyone until a human intervenes.
+文件协调有两种失败模式。没有租约时，两个 agent 可能同时写同一个路径。租约永久存在或靠人工管理时，一个崩溃或健忘的 agent 会留下一把锁，把所有人都挡在外面，直到人工介入。
 
-The board also needs to work when an agent is just doing a quick edit, without requiring a separate planning ceremony before every write.
+看板在 agent 只是做一次快速编辑时也必须可用，不能要求每次写入之前都先走一套单独的规划仪式。
 
 ## Decision
 
-The default claimPolicy is auto. Before a write/edit, the host resolves the target path and checks for a live lease owned by another agent. A live conflict denies the operation. Otherwise the host creates an auto lease in the agent's current change.
+默认的 claimPolicy 是 auto。在 write/edit 之前，宿主解析目标路径，并检查是否存在由其他 agent 持有的有效租约。存在有效冲突时，操作被拒绝。否则，宿主在该 agent 当前的变更里创建一条自动租约。
 
-Auto leases are renewed while the owning agent is running and released when the agent goes idle or is disposed. This keeps the normal path fast and prevents an idle turn from holding a write lock.
+自动租约在持有它的 agent 运行期间持续续租，并在 agent 空闲或被销毁时释放。这让常规路径保持轻快，也防止一个闲置的回合扣着写入锁不放。
 
-Explicit claims remain available for planned work and review. They use the same conflict rule but do not auto-release on idle; they require an explicit release or expire after their TTL. release accepts a summary. One agent has at most one active change; a new claim joins it, and a new task starts after the old change is released.
+显式占用仍然可用于有计划的作业和评审。它们遵循同样的冲突规则，但不会在空闲时自动释放；要么显式释放，要么在 TTL 到期后过期。release 接受一个 summary。一个 agent 至多只有一个活跃变更；新的占用加入其中，新的任务要等旧变更释放之后才开始。
 
-The guard covers write/edit. It does not cover arbitrary shell edits, so a lease is a coordination signal, not a kernel lock. claimPolicy can be require, advisory, or off for environments that need different behavior. (repealed by ADR 22)
+写入守卫覆盖 write/edit，不覆盖任意 shell 编辑，因此租约是一种协调信号，不是内核锁。对需要不同行为的环境，claimPolicy 可以设为 require、advisory 或 off。（已由 ADR 22 废止）
 
 ## Alternatives considered
 
-**No leases at all.** The board would be pure observability; concurrent writes would still race. The user's core requirement includes avoiding simultaneous edits.
+**完全不用租约。** 看板就只是纯观测；并发写入依然会竞争。用户的核心需求里就包含避免同时编辑。
 
-**Manual claims only.** Every write would require an explicit claim. This is safer in theory, but agents forget, and the extra step makes the common case expensive. It also does not solve stale locks; it just makes them more likely.
+**只用显式占用。** 每次写入都要先显式占用。理论上更安全，但 agent 会忘事，多出来的一步让常见场景变得昂贵。它也解决不了陈旧的锁，只会让陈旧锁更容易出现。
 
-**Permanent locks until manual release.** A crash or abandoned task would block the path indefinitely. TTL and idle release exist to bound that failure.
+**永久锁，直到人工释放。** 崩溃或被遗弃的作业会把路径无限期挡住。TTL 和空闲释放机制正是为了给这种失败设定边界而存在的。
 
-**One global lock.** It serializes unrelated files and repositories. The collision domain is a path, not the whole workspace.
+**一把全局锁。** 它会把不相干的文件和仓库串起来排队。冲突域是一个路径，不是整个工作区。
 
-**Rely on file mtimes or editor locks.** These are not atomic across agents, do not expose intent or history, and do not give the board a release event.
+**依赖文件 mtime 或编辑器锁。** 这些在 agent 之间不具原子性，不暴露 intent 或历史，也不会给看板留下释放事件。
 
 ## Consequences
 
-The common case is cheap: the first write creates a lease and later agents are blocked only when they target the same live path. The cost is that an explicit lease can look stale while its owner is still running; the user must check the owning session before forcing a release. Auto leases disappear on idle, so a long-running shell edit outside the guard is not protected.
+常见场景很便宜：第一次写入创建租约，后来的 agent 只有在瞄准同一条仍被有效占用的路径时才会被挡。代价是：显式租约可能在持有会话仍在运行时看起来已经陈旧；用户必须先确认持有它的会话，再强制释放。自动租约在空闲时消失，因此守卫之外、长时间运行的 shell 编辑不受保护。
 
-The user previously observed two explicit claims lingering after the work was done. That is the expected cost of explicit leases, not a corrupt state. The release summary and timeline make the cleanup visible; the claim TTL bounds it.
+用户此前观察到两次显式占用在工作完成后仍然滞留。那是显式租约的预期代价，不是状态损坏。释放 summary 和时间线让清理过程可见；占用 TTL 为它设定了上界。
 
-Tests must cover conflict, renewal, auto release on idle, explicit release, and expiry. A policy change to release explicit claims on idle would be a new decision because it changes the guarantee for planned work.
+测试必须覆盖冲突、续租、空闲时自动释放、显式释放和过期。把策略改成在空闲时释放显式占用会是一项新的决策，因为它改变了对计划性工作的保证。

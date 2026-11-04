@@ -1,42 +1,42 @@
 ---
 status: implemented
 date: 2026-11-03
-description: A host session's lease dies with its presence, and the unprompted reports list only working/blocked peers; both hosts render from one shared report module.
+description: 宿主会话的租约随其在线状态一同消亡，未经请求的报告只列出处于 working 或 blocked 的会话；两个宿主都从同一个共享报告模块渲染。
 raised-by: human
 decided-by: human
 created: 2026-11-03
 ---
 
-# ADR: 31 let leases and reports follow owner liveness
+# ADR: 31 让租约与报告跟随属主的存活状态
 
 ## Problem
 
-The board told a running session about sessions that no longer exist. Two verified leaks:
+看板会把早已不存在的会话讲给正在运行的会话听。两处经核实的泄漏：
 
-- A finished conversation in an open DSH window stays `idle` and its row keeps beating, so every other session's prompt context listed it forever with a stale focus line.
-- Worse: a crashed or killed host stopped heartbeating, so its presence rows went stale and were filtered within one TTL — but its leases did not follow. `getClaim`/`listClaims` looked only at `expiresAt`, so a dead session's auto lease kept denying writes for the full claim TTL (10 minutes by default, up to 4 hours explicit) and kept appearing as "files claimed by others" in prompts and rosters.
+- 会话已经结束但 DSH 窗口还开着时，它会停在 `idle`，其 presence 行也继续心跳，于是每个其他会话的提示词上下文都永远把它列出来，还带着一行过期的 focus。
+- 更糟的是：宿主崩溃或被杀掉后不再发心跳，它的 presence 行随之失效并会在一个 TTL 内被过滤掉——但它的租约并不跟着。`getClaim`/`listClaims` 只看 `expiresAt`，于是一个已死会话的自动租约会在整个 claim TTL 期间（默认 10 分钟，显式租约最长 4 小时）持续否决写入，并在提示词和花名册里继续以 "files claimed by others" 出现。
 
-Separately, the agent-facing rendering lived twice, once per host, and had already drifted: Pi's `team_claim list` returned the whole roster where DSH returned the lease table, focus was truncated at 240 characters in Pi and 500 in DSH, and the conflict denial differed by one word.
+另一件事：面向 agent 的渲染存在两份，每个宿主各一份，而且已经漂移：Pi 的 `team_claim list` 返回整份花名册，DSH 返回的却是租约表；focus 在 Pi 里截到 240 个字符，在 DSH 里截到 500；冲突否决的文案也差了一个词。
 
 ## Decision
 
-Leases follow owner liveness, and reports follow the same rule.
+租约跟随属主的存活状态，报告也遵循同一条规则。
 
-1. A lease a host session created — every auto lease, and any lease carrying a `sessionId` — is only as alive as its owner's presence row. When that row stops beating past its TTL, the lease is **abandoned**: the store filters it from `listClaims` (opt-out flag for inspection), `getClaim` no longer serves it to the guards, the next claim takes it over through the existing exclusive-create path, and the takeover appends an expire event with the summary `owner presence gone`. `expireClaims` sweeps abandoned leases the same way it sweeps expired ones, so no change stays open behind a dead session.
-2. A lease made through the CLI without a session keeps its plain TTL. It has no owner process to track, and correlating it would let a stale presence row bulldoze a human's explicit reservation.
-3. The unprompted views — the prompt context and `team_status` — list only peers that could actually collide: working or blocked, with live presence. An idle session has released its auto leases and cannot conflict; ended and stale sessions never appear. The roster stays the explicit full read: idle sessions marked as such, stale ones on request.
-4. Both hosts render these views from one shared module, `godview/report`: the collision view (`activePeers`/`claimsByOthers`), the roster renderer, and the one conflict-denial text. The hosts keep only their transport — DSH the prompt-context hook and HTTP panel, Pi the tools and TUI widget.
+1. 宿主会话创建的租约——一切自动租约，以及任何带 `sessionId` 的租约——其存活程度不超过属主的 presence 行。当那一行停止心跳并越过它的 TTL，租约即**被遗弃**：store 把它从 `listClaims` 中滤掉（留一个可关闭的开关供检视），`getClaim` 不再把它交给写入守卫，下一个 claim 通过既有的独占创建路径接管它，接管时追加一条 expire 事件，摘要为 `owner presence gone`。`expireClaims` 以清扫到期租约的同样方式清扫被遗弃的租约，于是没有哪个变更会吊在一个已死会话后面保持 open。
+2. 不经会话、通过 CLI 建立的租约保留其普通 TTL。它没有可跟踪的属主进程；硬做关联，反而会让一行失效的 presence 碾平人类显式留下的预留。
+3. 未经请求的视图——提示词上下文和 `team_status`——只列出真可能撞车的会话：处于 working 或 blocked、且 presence 存活的。idle 的会话已经释放了它的自动租约，不可能造成冲突；已结束和失效的会话从不出现。花名册仍是显式的全量读取：idle 的会话照实标注，失效的在模型要求时才出现。
+4. 两个宿主都从同一个共享模块 `godview/report` 渲染这些视图：撞车视图（`activePeers`/`claimsByOthers`）、花名册渲染器，以及唯一一份冲突否决文案。宿主只保留各自的传输层——DSH 保留提示词上下文钩子和 HTTP 面板，Pi 保留工具和 TUI 小部件。
 
 ## Alternatives considered
 
-- Correlate every lease with owner liveness, CLI leases included. Rejected: a CLI `godview claim` has no heartbeat after the shell exits, so the rule would silently break human reservations 90 seconds after they were made. The `sessionId` marker is the honest line between "a session renewed this" and "someone reserved this".
-- Treat only expired leases as dead and extend the auto-claim TTL instead. Rejected: it leaves the dead-session denial window at whatever the TTL is, which is exactly the imprecision this decision removes.
-- Drop idle peers everywhere, roster included. Rejected: the roster is an explicit read — the model asked who is around, and an idle session with an explicit lease is real information. The precision contract governs what is injected unprompted.
-- Keep per-host rendering and just align the constants. Rejected: the drift already happened with two adapters; the third adapter would copy it again. The report policy is one decision, so it lives in one module.
+- 让一切租约都跟属主存活状态关联，CLI 租约也不例外。否决：CLI 的 `godview claim` 在 shell 退出后就没有心跳了，这条规则会在人类的预留做出 90 秒后一声不响地把它拆掉。`sessionId` 标记是「某会话续过它」与「某人预留了它」之间那条诚实的分界线。
+- 只把到期的租约视为死租约，转而延长自动租约的 TTL。否决：这会让已死会话造成的否决窗口停留在 TTL 的任何数值上，而本决策要消除的正是这份不精确。
+- 在所有视图里都滤掉 idle 的会话，花名册也不例外。否决：花名册是显式读取——模型在问都有谁在场，而一个持有显式租约的 idle 会话是真实信息。精确性契约约束的是未经请求就被注入的内容。
+- 保留每宿主各自渲染，仅把常量对齐。否决：两个适配器时就已经发生漂移；第三个适配器只会把漂移再抄一遍。报告策略是一个决策，所以它应当活在一个模块里。
 
 ## Consequences
 
-- A crashed session stops blocking others within one presence TTL (~90s) instead of one claim TTL (10 minutes to 4 hours). The cost: a live host stalled longer than its presence TTL can have its auto leases taken over — that is the same contract the presence row already advertises, and the takeover records the event so the timeline shows what happened.
-- The prompt context got shorter and stops listing idle windows; sessions that want the full picture call `team_roster`.
-- DSH `stop()` now closes its tracked sessions out (done + release all) the way Pi's stop always has, so a clean quit does not masquerade as a crash.
-- The report wording is testable once, in the core, instead of being pinned separately in each host.
+- 崩溃的会话在约一个 presence TTL（~90s）内就不再阻塞他人，而不是拖满一个 claim TTL（10 分钟到 4 小时）。代价是：一个仍活着但卡死超过 presence TTL 的宿主，其自动租约可能被接管——这正是 presence 行本来就在声明的同一份契约，而接管会记录成事件，时间线上看得见发生了什么。
+- 提示词上下文变短了，也不再罗列 idle 的窗口；想要全貌的会话自己调用 `team_roster`。
+- DSH 的 `stop()` 现在也像 Pi 的 stop 一直做的那样，把自己跟踪的会话善后（标记 done + 释放全部租约），于是一次干净退出不会再伪装成崩溃。
+- 报告的文案只需在核心里测一次，而不是在每个宿主里分别钉住。

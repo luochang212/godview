@@ -1,48 +1,48 @@
 ---
 status: implemented
 date: 2026-10-30
-description: Read before adding tabs, dashboard cards, activity feeds, setup screens, or any new top-level UI concept.
+description: 在新增标签页、仪表盘卡片、活动流、设置界面或任何新的顶层界面概念之前请阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-30
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/lib/index.js]
 ---
 
-# ADR: 5 Keep the board to one read-only screen and three concepts
+# ADR: 5 把看板保持为一个只读界面和三个概念
 
-> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
-> (2026-10-31).** The single read-only screen and the three concepts stand, but "Refresh is the only action button" no longer holds: there is no refresh button, and the panel carries exactly two controls — the coordination switch and the rail toggle.
+> **被 [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> （2026-10-31）部分取代。** 单一只读界面和三个概念依然成立，但「刷新是唯一的操作按钮」已不再成立：面板没有刷新按钮，只带恰好两个控件——协调开关和项目栏折叠开关。
 
 ## Problem
 
-An earlier iteration tried to be a coordination console: seven message kinds, threads, per-message acknowledgements, an event feed, four tabs, statistics cards, and a setup tab. The user could not understand the UI at a glance, and the extra surfaces did not make file coordination or occupancy easier to see. They made the product look broader while making the core state harder to find.
+早期的一次迭代曾试图做成一个协作控制台：七种消息、会话线程、逐条消息的确认、事件流、四个标签页、统计卡片和一个设置标签页。用户无法一眼看懂界面，多出来的那些界面也并没有让文件协调或占用情况更容易看清。它们让产品显得更庞大，却让核心状态更难找到。
 
-The board's job is narrow. The interface should make the narrow job obvious rather than expose every internal concept as a separate panel.
+看板的职责很窄。界面应当把这份窄职责呈现得一目了然，而不是把每个内部概念都摊开成一块独立的面板。
 
 ## Decision
 
-The panel is one read-only screen built on three concepts: presence, claims/changes, and the claim/release timeline. Everything else is either a compact part of those concepts or absent.
+面板是一个只读界面，建立在三个概念之上：在线状态、占用/变更，以及 claim/release 时间线。其余内容要么紧凑地并入这三个概念，要么直接不存在。
 
-There are no tabs, no statistics dashboard, no activity feed, no setup screen, and no composer. The project rail is navigation; Sessions and the Gantt are the detail. The exact event list is collapsed under the Gantt rather than promoted to another tab. Refresh is the only action button.
+没有标签页，没有统计仪表盘，没有活动流，没有设置界面，也没有输入框。项目栏是导航；会话区与甘特图是详情。精确的事件列表折叠在甘特图下方，而不是升级为另一个标签页。刷新是唯一的操作按钮。
 
-The panel does not explain the protocol through a settings UI. Configuration belongs in the profile; operational details belong in the CLI and AGENTS.md.
+面板不会通过设置界面来解释协议。配置属于 profile；操作细节属于 CLI 和 AGENTS.md。
 
 ## Alternatives considered
 
-**Tabs for sessions, files, changes, and setup.** Tabs hide the relationship between concepts and force the user to hunt for the current state. With only three concepts, tabs add navigation cost without reducing content.
+**为会话、文件、变更和设置分设标签页。** 标签页会掩盖概念之间的关系，逼着用户去搜寻当前状态。既然只有三个概念，标签页只会增加导航成本，却减少不了任何内容。
 
-**Statistics cards.** Counts are useful, but large cards give them more weight than the actual work. A single summary line in the rail footer is enough.
+**统计卡片。** 计数有用，但大号卡片给它们的分量超过了实际工作本身。项目栏底部一行汇总就够了。
 
-**An activity feed.** The claim/release timeline is already the activity that matters. A second chronological feed would duplicate it and invite unrelated events into the product.
+**活动流。** claim/release 时间线本身就已经是真正重要的活动记录。再加一条按时间排列的流只会与它重复，并把无关事件引进产品。
 
-**A setup tab.** Configuration is a profile concern. A setup UI makes the board stateful and requires human input that the agent-owned workflow does not need.
+**设置标签页。** 配置是 profile 的事。设置界面会让看板变成有状态的，还会引入 agent 主导的工作流并不需要的人工输入。
 
-**A composer or command bar.** Human input is out of scope. The board is a read surface; agents act through tools.
+**输入框或命令栏。** 人工输入不在范围之内。看板是一个只读界面；agent 通过工具行动。
 
 ## Consequences
 
-The product is easier to learn and the test surface stays small: zero inputs/selects/textareas, one refresh action, navigation buttons only. The cost is that some operational tasks move to the CLI or profile, and the board does not try to be a general chat or admin console.
+产品更容易学会，测试面也保持很小：input/select/textarea 数量为零，一个刷新操作，只有导航按钮。代价是一些操作任务转移到了 CLI 或 profile，而看板不试图充当通用聊天或管理控制台。
 
-The three concepts become a design budget. A new top-level surface needs a new decision and must justify why it cannot be a compact part of presence, claims, or the timeline.
+这三个概念成为一份设计预算。新增一个顶层界面需要新的决策记录，并且必须论证它为什么不能紧凑地并入在线状态、占用或时间线。
 
-The exact-time details remain available without becoming a primary tab; this keeps the one-screen promise while preserving evidence.
+精确时间的细节仍然可见，但不会成为主标签页；这样既守住了一屏之约，也保留了证据。

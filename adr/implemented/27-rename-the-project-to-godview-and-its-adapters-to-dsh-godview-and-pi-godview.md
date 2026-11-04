@@ -1,12 +1,10 @@
 ---
 status: implemented
 date: 2026-11-02
-description: Rename the repository and the adapter packages so the brand, the
-  core package, and both adapter names all spell godview the same way.
+description: 重命名仓库与适配器包，让品牌、核心包和两个适配器的名字都拼成同一个 godview。
 raised-by: human
 decided-by: human
 created: 2026-11-02
-commit: 14cd2b0
 paths:
   - package.json
   - package-lock.json
@@ -26,69 +24,55 @@ paths:
   - docs/protocol.md
 ---
 
-# ADR: 27 rename the project to godview and its adapters to dsh-godview and pi-godview
+# ADR: 27 把项目更名为 godview，适配器更名为 dsh-godview 与 pi-godview
 
 ## Problem
 
-The project started as a single DSH plugin called `dsh-god-view`, and the
-repository was named after that adapter. ADR 25 then split a host-neutral core
-(`godview`) out of the plugin, and ADR 26 added a second adapter for the Pi
-coding agent. The project is now a board with a generic core and two adapters,
-but its names still describe the first adapter: the repository is
-`dsh-god-view`, and both adapters spell the product as `god-view` while the
-core package spells it `godview`.
+项目起初是一个名为 `dsh-god-view` 的单一 DSH 插件，仓库也按这个适配器命名。随后
+ADR 25 从插件中拆出了宿主中立的核心（`godview`），ADR 26 又为 Pi coding agent 加了
+第二个适配器。项目今天是一块带一个通用核心和两个适配器的看板，但它的名字仍在描述第
+一个适配器：仓库叫 `dsh-god-view`，两个适配器把产品拼成 `god-view`，而核心包拼的是
+`godview`。
 
-That split spelling is the concrete defect. Ecosystem convention keeps the
-brand's own spelling inside a `<platform>-<brand>` name (`tailwindcss-animate`
-follows `tailwindcss`, not `tailwind-css`), so `dsh-god-view` asserts a brand
-of "god view" that no longer exists anywhere else.
+这种拼写分裂就是具体的缺陷。生态惯例是在 `<platform>-<brand>` 式命名里保持品牌自身的
+拼法（`tailwindcss-animate` 跟着 `tailwindcss` 走，而不是 `tailwind-css`）；因此
+`dsh-god-view` 宣称了一个叫 "god view" 的品牌，而这个品牌在其他任何地方都已不存在。
 
 ## Decision
 
-The brand is `godview`, spelled as one word everywhere. The repository is
-`godview`; the three npm packages are `godview` (core), `dsh-godview` (DSH
-adapter), and `pi-godview` (Pi adapter). Adapter names keep the platform-first
-pattern and keep the brand intact.
+品牌是 `godview`，处处拼成一个词。仓库是 `godview`；三个 npm 包是
+`godview`（核心）、`dsh-godview`（DSH 适配器）和 `pi-godview`（Pi 适配器）。适配器
+命名保持平台在前的模式，并保持品牌完整。
 
-The old names `dsh-god-view` and `pi-god-view` are abandoned, not aliased. They
-were never published to a registry, so this rename ships no deprecation notice
-and no compatibility package.
+旧名字 `dsh-god-view` 和 `pi-god-view` 直接废弃，不做别名。它们从未发布到任何
+registry，所以这次更名不发布 deprecation 声明，也不提供兼容包。
 
-Names that derive from the package name move with it:
+由包名派生的名字随之迁移：
 
-- the DSH plugin id and the HTTP route prefix become `dsh-godview` and
-  `/plugins/dsh-godview/api`;
-- the browser storage key for the rail becomes `dsh-godview:rail`;
-- package `repository`/`homepage` URLs point at the `godview` repository;
-- the ADR archive publishes at the Pages base path `/godview/`.
+- DSH 插件 id 和 HTTP 路由前缀变为 `dsh-godview` 与 `/plugins/dsh-godview/api`；
+- 项目栏的浏览器存储键变为 `dsh-godview:rail`；
+- 包的 `repository`/`homepage` URL 指向 `godview` 仓库；
+- ADR 档案发布在 Pages 基础路径 `/godview/`。
 
-The copy on the panel itself does not change: the sidebar entry is still
-上帝视角 / God's Eye, and the board is still a read-only coordination surface.
+面板本身的文案不变：侧边栏条目仍是 上帝视角 / God's Eye，看板仍是只读的协调界面。
 
 ## Alternatives considered
 
-- **Keep `dsh-god-view` and `pi-god-view`.** Rejected: those names encode a
-  brand spelling the project no longer uses, and the repository they were named
-  after is being renamed.
-- **Use `godview-dsh` and `godview-pi`.** Rejected: it would be consistent, but
-  it inverts the platform-first order every existing adapter name and doc uses,
-  and buys nothing beyond the rename already required.
-- **Publish the new names and deprecate the old ones.** Rejected: nothing was
-  ever published under the old names, so deprecation would create a pointer to a
-  package that never existed.
-- **Alias the old directory paths while renaming the packages.** Rejected: two
-  names for one workspace member is the exact drift this decision removes.
+- **保留 `dsh-god-view` 和 `pi-god-view`。** 否决：这些名字编码了项目已不再使用的品
+  牌拼法，而且按它命名的仓库本身正在更名。
+- **改用 `godview-dsh` 和 `godview-pi`。** 否决：虽然一致，但它颠倒了现有每个适配器
+  名字和文档都在用的平台在前顺序，除了更名本身之外换不来任何收益。
+- **发布新名字并把旧名字标记弃用。** 否决：旧名字从未发布过任何东西，deprecation 只
+  会指向一个根本不存在的包。
+- **包改名的同时给旧目录路径留别名。** 否决：一个 workspace 成员配两个名字，恰是这
+  个决定要消除的漂移。
 
 ## Consequences
 
-The rename is breaking for anyone already pointing a DSH profile at
-`dsh-god-view`: the profile patch row and the `node_modules` link must both move
-to `dsh-godview`, and the host must be restarted before the panel appears again.
-A browser that had collapsed the rail reopens it once, because the storage key
-changed. The ADR archive's old `/dsh-god-view/` URL stops resolving; GitHub
-Pages does not redirect project paths.
+对已经把 DSH profile 指向 `dsh-god-view` 的人来说，这次更名是破坏性的：profile patch
+行和 `node_modules` 链接都必须迁到 `dsh-godview`，宿主必须重启，面板才会重新出现。
+曾收起项目栏的浏览器会把它强制展开一次，因为存储键变了。ADR 档案旧的
+`/dsh-god-view/` 地址停止解析；GitHub Pages 不会重定向项目路径。
 
-The repository gains one spelling for one brand: the repository, the core
-package, both adapters, the plugin id, and the published archive all agree.
-Version numbers do not move: `0.1.0` was never published under the old names, so
-the rename is a naming change, not a release.
+仓库从此一个品牌只有一个拼法：仓库、核心包、两个适配器、插件 id 和发布的档案全部一
+致。版本号不动：`0.1.0` 从未以旧名字发布过，所以这次更名是命名变更，不是一次发布。

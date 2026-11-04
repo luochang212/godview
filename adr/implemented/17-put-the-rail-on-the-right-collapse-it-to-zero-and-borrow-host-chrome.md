@@ -1,50 +1,50 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the rail's side, width, collapse behaviour, the topbar controls, or any chrome colour in the panel.
+description: 修改项目栏的侧别、宽度、收起行为、顶栏控件，或面板中任何界面元素颜色之前请阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/ui-flow.cjs, packages/dsh-godview/test/client-locale.test.mjs]
 ---
 
-# ADR: 17 Put the project rail on the right, collapse it to zero, and borrow the host's chrome
+# ADR: 17 把项目栏移到右侧、收起至零，并借用宿主的界面元素
 
-> **Partly superseded by [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
-> (2026-10-31).** The right-hand rail, the host chrome, and the collapse-to-zero toggle remain; ADR 19 strips the rail to a bare list — the header with its caption and count, the footer, and the selected-row brand marker are gone — and pins the toggle to the panel's corner instead of the topbar's edge.
+> **被 [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> （2026-10-31）部分取代。** 右侧的项目栏、宿主的界面元素和收起至零的开关按钮都保留了下来；ADR 19 把项目栏精简成一个素净的列表——带题注和计数的页眉、页脚、选中行的品牌标记都不复存在——并把开关按钮钉在面板的角落，而不是顶栏的边缘。
 
 ## Problem
 
-The rail sat on the left, next to DSH's own left sidebar: two vertical lists competing for the same edge, and the board lost 232px to a rail that repeats what the host sidebar already names. The rail also opened with a brand block (a 36px tile and the words 上帝视角) even though the panel is already reached through the host's own sidebar entry. That showed the same identity twice, once in the host chrome and once inside the panel.
+项目栏原本位于左侧，紧挨着 DSH 自己的左边栏：两个纵向列表在争夺同一条边缘，而看板为一个重复宿主边栏早已点明之物的项目栏付出了 232px。项目栏打开时还带着一块品牌区（一个 36px 的磁贴和"上帝视角"几个字），可面板本来就是通过宿主自己的边栏入口进去的。这等于把同一个标识展示了两遍，一遍在宿主界面元素里，一遍在面板内部。
 
-The chrome had drifted from the host's own controls. Our switch was 34x20 and turned **green** when on; DSH's is 36x20 and turns **brand** (near-black in light, white in dark). The rail mixed its own colours with `color-mix` and used a 10px radius, while the host exposes `--dsw-specific-sidebar-fill`, `--dsw-alias-border-l1`, `--dsw-alias-interactive-bg-hover`, `--dsw-alias-bg-multi-select`, and a radius scale that the rest of the app uses.
+界面元素也偏离了宿主自己的控件。我们的开关是 34x20，打开时变**绿色**；DSH 的是 36x20，打开时变 **brand**（浅色主题下近乎黑色，深色主题下是白色）。项目栏用 `color-mix` 掺和自配的颜色，还用了 10px 圆角；而宿主暴露了 `--dsw-specific-sidebar-fill`、`--dsw-alias-border-l1`、`--dsw-alias-interactive-bg-hover`、`--dsw-alias-bg-multi-select`，以及应用其余部分都在使用的一整套圆角刻度。
 
 ## Decision
 
-**The rail is on the right.** It renders after the content in the DOM and is ordered to the right edge (`order: 2`), with `border-left: border-l1` instead of a right border. Width is 264px, the host's `SIDEBAR_MIN`, narrowing to 220px under 820px and stacking above the content under 700px.
+**项目栏在右侧。** 它在 DOM 中渲染于内容之后，并被排到右边缘（`order: 2`），用 `border-left: border-l1` 取代右边框。宽度为 264px，即宿主的 `SIDEBAR_MIN`；视口低于 820px 时收窄到 220px，低于 700px 时堆叠到内容上方。
 
-**It collapses to zero.** A 28px icon button in the topbar toggles the rail. It uses the host's compact-button size, 8px radius, `interactive-bg-hover` hover, and a 2px focus ring. The button carries `aria-expanded`, `aria-controls="pt-rail"`, and a mirrored panel icon while the rail is open. The preference is stored in `localStorage` (`dsh-godview:rail`), so it survives a reload.
+**它可以收起至零。** 顶栏中一个 28px 的图标按钮切换项目栏。它使用宿主的紧凑按钮尺寸、8px 圆角、`interactive-bg-hover` 悬停效果和 2px 焦点环。按钮带有 `aria-expanded`、`aria-controls="pt-rail"`，项目栏打开时还使用一个镜像的面板图标。该偏好保存在 `localStorage`（`dsh-godview:rail`）里，因此重载后依然生效。
 
-**The rail has no brand block.** Its header is a single 56px row that lines up with the topbar and holds the caption and count, so the top hairline runs unbroken across the whole panel. The brand mark now appears only in the host sidebar entry and on the blank page.
+**项目栏没有品牌区。** 它的页眉是一整条 56px 高的行，与顶栏对齐，容纳题注和计数，于是顶部细线横贯整个面板而不被打断。品牌标记现在只出现在宿主边栏入口和空页面上。
 
-**The chrome uses host values, not ours.** The switch is rebuilt to the host's own spec: 36x20, 2px padding, 999px radius, `border-l3` track, `brand-primary` when on, 16px thumb (`switch-thumb` off, `label-primary-foreground` on, `translateX(16px)`), 2px focus ring, 0.5 opacity when disabled. Rail fill is `specific-sidebar-fill`; row hover is `interactive-bg-hover`; the selected row is `bg-multi-select` with a brand marker on the rail's inner edge; the footer divider is `border-l1`. All hand-mixed tints and the tinted page are gone: the page is `bg-base`.
+**界面元素用宿主的值，不再用我们自己的。** 开关按宿主自己的规格重建：36x20、2px 内边距、999px 圆角、`border-l3` 轨道、打开时 `brand-primary`、16px 滑块（关闭时 `switch-thumb`，打开时 `label-primary-foreground`，`translateX(16px)`）、2px 焦点环、禁用时 0.5 不透明度。项目栏填充为 `specific-sidebar-fill`；行悬停为 `interactive-bg-hover`；选中行为 `bg-multi-select`，并在项目栏内侧边缘带一个品牌标记；页脚分隔线为 `border-l1`。所有手工调配的色调和带色调的页面都消失了：页面就是 `bg-base`。
 
-**Cards keep their form.** The two section cards stay with their in-card headers, hairline rows, `elevation-soft`, and 12px radius. They now sit on the host's base surface instead of a tint we invented. The card is the one shape this panel adds; everything inside it is host vocabulary.
+**卡片保持原有形态。** 两个分区卡片依旧带着卡片内的页眉、细线分行、`elevation-soft` 和 12px 圆角。它们现在落在宿主的基底表面上，而不是我们发明的某种色调上。卡片是这个面板唯一增添的形制；卡片之内一切都是宿主的语汇。
 
 ## Alternatives considered
 
-**Register the rail into the host's `rightbar` slot.** Tempting for "native", but that slot is a tabbed artifact viewer (files, terminal, document preview): our board would live under a tab strip and the master-detail relationship with the main panel would be lost.
+**把项目栏注册进宿主的 `rightbar` 槽位。** 为了"原生"的诱惑很想这么做，但那个槽位是一个带标签页的构件查看器（文件、终端、文档预览）：我们的看板会被塞到标签条之下，与主面板之间的主从关系也就丢了。
 
-**Collapse to a 56px icon rail, like the host's left sidebar.** The host's collapsed rail is icons only; our rows are a name, three counts and a timestamp. At 56px they would collapse to coloured dots, which says less than nothing.
+**像宿主左边栏那样收起成 56px 的图标栏。** 宿主收起后的边栏只剩图标；而我们的行是名称、三个计数和一个时间戳。压到 56px 时它们只会变成几个彩色圆点，传达的信息比零还少。
 
-**Keep the switch inside the rail.** The switch is the only mode control; folding the rail would then hide it. Keeping both chrome controls in the topbar means the rail can disappear without taking a decision away from the human.
+**把开关留在项目栏内部。** 开关是唯一的模式控件；折叠项目栏就会把它藏起来。把两个界面控件都留在顶栏，意味着项目栏可以消失，却不会从人手里拿走一个决定。
 
-**Keep the tinted page for card contrast.** Rejected after the token audit: DSH's light layers are all white and its cards/popovers rely on a 0.5px stroke plus a very soft shadow. Matching that is what makes the panel read as native, even though the cards themselves are quieter than before.
+**为了卡片对比度保留带色调的页面。** 在令牌盘点之后被否决：DSH 的浅色层全是白色，它的卡片和浮层靠 0.5px 描边加一层极柔和的阴影支撑。向它看齐正是面板显得原生的关键，哪怕卡片本身比以前更安静了。
 
 ## Consequences
 
-- The panel now has **two** controls: the coordination switch (mode) and the rail toggle (chrome). The old invariant "exactly one control" becomes "one mode control plus one chrome toggle"; the read-only test still requires zero inputs, selects, and textareas.
-- The board gets the full width when the rail is collapsed, which is the state a human will keep while watching the Gantt.
-- Rail and board no longer compete with the host's left sidebar; the panel reads as a right-hand inspector, the same edge the host uses for its own right panel.
-- Dark cards sit on the same surface as the page and are held by the elevation stroke alone. That is the host's own treatment; if the cards need more separation later, the fix is a token change, not a new colour.
-- `test/ui-flow.cjs` asserts the rail is right of the content, renders at 264px, collapses to zero and restores, and that the topbar carries exactly one toggle. `test/client-locale.test.mjs` asserts the rail has no brand mark and the topbar toggle exists.
+- 面板现在有**两个**控件：协调开关（模式）和项目栏开关按钮（界面元素）。旧的"恰好一个控件"不变量变成"一个模式控件加一个界面开关按钮"；只读测试仍然要求 input、select、textarea 数量为零。
+- 项目栏收起后，看板拿到全部宽度，而这正是人盯着甘特图时会保持的状态。
+- 项目栏和看板不再与宿主左边栏抢地盘；面板读起来是一个右侧检查器，用的正是宿主给自己的右面板的那条边缘。
+- 深色卡片与页面落在同一个表面上，只靠抬升描边维持轮廓。这本来就是宿主自己的处理；日后若卡片需要更强的分隔，修法是改令牌，而不是新加颜色。
+- `test/ui-flow.cjs` 断言项目栏位于内容右侧、按 264px 渲染、能收起至零并恢复，且顶栏恰好带一个开关按钮。`test/client-locale.test.mjs` 断言项目栏没有品牌标记、顶栏开关按钮存在。

@@ -1,52 +1,51 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing the panel shell, the project rail, the topbar, or how content scrolls inside the plugin panel.
+description: 修改面板外壳、项目栏、顶栏或插件面板内内容的滚动方式前先阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/ui-flow.cjs]
 ---
 
-# ADR: 10 Treat the panel as an app shell (logo rail, topbar, scrolling content), not a padded document
+# ADR: 10 把面板当作应用外壳（带 logo 的项目栏、顶栏、滚动内容），而不是一篇带内边距的文档
 
-> **Partly superseded by [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
-> and [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
-> (both 2026-10-31).** The app shell, topbar, and scrolling content remain; the
-> rail no longer matches this ADR: it moved to the right edge, collapsed to a
-> bare 264px list without logo area, caption, or footer counts.
+> **被 [ADR 17](17-put-the-rail-on-the-right-collapse-it-to-zero-and-borrow-host-chrome.md)
+> 和 [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> （均为 2026-10-31）部分取代。** 应用外壳、顶栏与滚动内容区依然成立，项目栏已不符合本 ADR
+> 的描述：它移到了右边缘，收缩为一个没有 logo 区、题注和页脚计数的 264px 素净列表。
 
 ## Problem
 
-The board was rendered as a padded page inside the host: a title row (glyph, title, live status, switch) followed by a banner and a two-column grid, all inset by 24/32px. The project rail began below that header, so it read as a sidebar floating inside a document rather than as the panel's navigation. With the rail no longer flush to the panel edges, the first screen of a 1000×900 panel wasted horizontal space and looked like a different product next to the host chrome.
+此前看板渲染成宿主里一个带内边距的页面：一行标题（图形标记、标题、实时状态、开关），其后是横幅和一个两栏网格，整体再向内缩进 24/32px。项目栏从那个头部之下才开始，于是它读起来像漂浮在文档内部的侧边栏，而不是面板的导航。项目栏与面板边缘不再贴合，1000×900 面板的首屏便浪费着横向空间，和宿主外壳摆在一起像是另一个产品。
 
-The reference layout (the `ml-auto` web app at /Users/alex/Documents/GitHub/ml-auto) is an app shell: a full-height tinted sidebar with a logo area, navigation, and a footer; a 56px topbar with the page title; and a scrolling content area. That structure fits the board because the board already has navigation (projects) and one detail subject (the selected repository).
+参照布局（`/Users/alex/Documents/GitHub/ml-auto` 里的 `ml-auto` web 应用）是一个应用外壳：一条通高、带底色的侧边栏，含 logo 区、导航和页脚，一条放页面标题的 56px 顶栏，以及一个滚动的内容区。这个结构适合看板，因为看板本来就有导航（项目）和一个详情主体（选中的仓库）。
 
 ## Decision
 
-The panel is one full-bleed app shell, without page padding:
+面板是一个通栏铺满的应用外壳，没有页面内边距：
 
-- **Sidebar (232px, full height, tinted background, hairline border):** a 64px logo area (the eye glyph in an accent-tinted square plus the `pt-title` wordmark), a section caption for recent projects, the scrolling project list, and a footer with the selected board's active-session and files-in-use counts.
-- **Main column:** a 56px topbar carrying the selected project's name and repository path on the left, and the live indicator plus the coordination switch on the right; the coordination-off banner renders as a slim strip under the topbar; the content area below scrolls independently and holds Sessions, the claim Gantt, the exact-time details, and the read-only note.
+- **侧边栏（232px、通高、带底色、发丝线边框）：** 一个 64px 的 logo 区（强调色底方块里的 eye 图形，加上 `pt-title` 字标）、一个最近项目的分区题注、可滚动的项目列表，以及一个页脚，显示选中看板的活跃会话数与在用文件数。
+- **主列：** 一条 56px 顶栏，左侧是选中项目的名称与仓库路径，右侧是实时指示灯加协调开关，协调关闭横幅渲染成顶栏下方的一条窄带，其下的内容区独立滚动，容纳会话区、占用甘特图、精确时间明细和只读说明。
 
-Colors and type continue to come from the host (`--dsw-alias-*`, `--dsw-font-*`) so both host themes work without a theme switch of our own. The panel still has exactly one control (the switch), no inputs, and project rows remain navigation buttons.
+颜色与字体仍然取自宿主（`--dsw-alias-*`、`--dsw-font-*`），因此宿主的两种主题无需我们自己再加主题切换就能直接工作。面板仍然恰好只有一个控件（那个开关），没有任何输入框，项目行依旧是导航按钮。
 
-This ADR extends ADR 4 (the rail stays full height with its footer grounded) and ADR 5 (one read-only screen); it does not add a tab, card, feed, or settings surface. The reference app's theme toggle and settings page are deliberately not copied: the host owns theming, and configuration stays in the profile.
+本 ADR 延伸了 ADR 4(项目栏保持通高、页脚落地)和 ADR 5(一块只读屏幕)；它没有增加标签页、卡片、信息流或设置界面。参照应用的主题切换与设置页是有意不抄的：主题归宿主所有，配置留在 profile 里。
 
 ## Alternatives considered
 
-**Keep the padded document layout.** It was shipping and tested, but the rail did not touch the panel edge, the title row competed with the project header, and the panel looked unlike an application. The padding also cost 64px of horizontal room in an already narrow host column.
+**保留带内边距的文档布局。** 它已在发布且经过了测试，但项目栏碰不到面板边缘，标题行与项目头部互相争夺，面板看起来不像一个应用。在本已狭窄的宿主列里，这圈内边距还吃掉了 64px 的横向空间。
 
-**Copy the reference wholesale (theme switch, settings page, dataset picker).** Those controls would add surfaces ADR 2 and ADR 5 forbid, and the host already provides theming. Only the layout skeleton is borrowed.
+**整体照搬参照（主题开关、设置页、数据集选择器）。** 那些控件会添上 ADR 2 与 ADR 5 禁止的界面，而宿主已经提供了主题化。这里只借用了布局骨架。
 
-**Put the switch in the sidebar footer.** The footer is a count strip; the switch is a mode control and belongs in the header. The topbar is the panel header, so ADR 9's "one switch in the panel header" still holds.
+**把开关放进侧边栏页脚。** 页脚是一条计数带，开关是模式控件，属于头部。顶栏就是面板的头部，所以 ADR 9 的 "one switch in the panel header" 依然成立。
 
-**A boxed project picker above the list (mirroring the reference's dataset button).** It would duplicate the selected row and imply a picker interaction the read-only panel does not have.
+**在列表上方放一个带边框的项目选择器（对应参照里的数据集按钮）。** 它会与选中行重复，还暗示了一种只读面板并不具备的选择器交互。
 
 ## Consequences
 
-The rail is 232px wide and flush with the panel edge, and the detail content loses that width; the Gantt path column is narrowed from 210px to 190px to keep lane space. The topbar shows the selected project, so the old "project" line inside the content is gone.
+项目栏宽 232px 且与面板边缘齐平，详情内容为此让出这段宽度，甘特图的路径列从 210px 收窄到 190px 以保住泳道空间。顶栏显示选中的项目，内容里原来的 "project" 行随之删除。
 
-The content area, not the main column, is the scroll container. Tests must assert the rail reaches the panel bottom, the topbar is 56px, the content scrolls, and the switch count stays one.
+滚动容器是内容区而不是主列。测试必须断言项目栏延伸到面板底部、顶栏为 56px、内容可滚动，且开关数量保持为一个。
 
-Below 700px of panel width the shell stacks: the rail becomes a horizontal, scrollable project strip above the content rather than a fixed column.
+面板宽度低于 700px 时外壳改为纵向堆叠：项目栏变成内容上方一条可横向滚动的项目带，而不再是一个固定列。

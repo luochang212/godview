@@ -1,51 +1,52 @@
 ---
 status: implemented
 date: 2026-10-31
-description: Read when changing which projects the rail lists, how an idle or empty board is presented, or the rail's empty state.
+description: 修改项目栏列出哪些项目、空闲或空白看板如何呈现、以及项目栏的空状态前先阅读。
 raised-by: human
 decided-by: human
 created: 2026-10-31
 paths: [packages/dsh-godview/lib/client.js, packages/dsh-godview/test/client-locale.test.mjs, packages/dsh-godview/test/ui-flow.cjs]
 ---
 
-# ADR: 11 List active projects only, and give an empty board one quiet blank page
+# ADR: 11 只列出活跃项目，并给空看板一片安静的空白页
 
-> **Partly superseded by [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
-> (2026-10-31).** Active-only listing and the quiet blank page remain; the caption that counted the listed rows and the footer are gone — the rail is a bare list.
+> **被 [ADR 19](19-strip-the-rail-to-a-bare-list-and-pin-the-toggle-to-the-panel-corner.md)
+> （2026-10-31）部分取代。** 仅列出活跃项目与安静的空白页依然成立，统计列出行数的题注和页脚
+> 已经移除——项目栏是一个素净的列表。
 
 ## Problem
 
-The rail listed every repository in the registry, grouped into Active and Idle. Most of those idle rows were boards with no presence, no lease, and no change at all. They existed only because a session had once been opened there. Opening one produced a page that was structurally complete and informationally empty: an empty Sessions box, an empty Gantt box, an empty details list. That is noise that invites a click and then repays it with nothing.
+项目栏会列出注册表里的每个仓库，分成 Active 和 Idle 两组。那些空闲行中，大多数对应的看板没有在线状态、没有租约、也根本没有变更。它们存在只是因为曾有个会话在那里打开过。点开这样的看板，得到的是一个结构完整、信息为空的页面：一个空的会话区、一个空的甘特图框、一个空的明细列表。这是噪声：它招来一次点击，然后什么也不回报。
 
-Grouping active and idle did not help: the idle group was the larger half of the rail, and the empty pages behind it looked identical to a working project whose board had simply not loaded yet.
+把活跃与空闲分组也无济于事：空闲组占了项目栏的大半，而它背后那些空页面，与一个只是看板还没加载出来的正常工作的项目看起来一模一样。
 
 ## Decision
 
-The rail lists only boards with current activity. Such a board has status `active` (a live presence) or `claimed` (a live lease). An idle board is not rendered at all. The caption counts what is listed ("活跃项目 N").
+项目栏只列出当前有活动的看板。这样的看板状态是 `active`(在线状态存活)或 `claimed`(租约有效)。空闲的看板根本不渲染。题注统计被列出的行数（"活跃项目 N"）。
 
-Selection follows that rule: if the selected board goes idle, the client moves to the first active board on the next poll instead of keeping a dead page open. If no board is active, the panel shows one blank page: the brand glyph at low opacity and a single line explaining that projects appear once a session works here (or, with coordination off, that the switch above turns it on). The topbar reads "没有活跃项目" and drops the path line. There are no section headers, no empty boxes, no dashed placeholders.
+选中项遵循同一条规则：若选中的看板转为空闲，客户端会在下一次轮询时移到第一个活跃看板，而不是守着一张死页面。若没有任何活跃看板，面板显示一整页空白：低透明度的品牌图形，加一行文字，说明会话在此工作后项目就会出现（协调关闭时，则说明上方的开关会把它打开）。顶栏显示 "没有活跃项目"，并去掉路径行。没有分区标题，没有空框，没有虚线占位。
 
-Per-section empty states that can still occur (for example an active board with claims but no live session) are plain muted text, not boxed placeholders.
+仍可能出现按分区的空状态（例如有占用但没有存活会话的活跃看板），以朴素的弱化文字呈现，而不是带框的占位。
 
-This supersedes three details of earlier records, without changing their decisions:
+这取代了此前记录中的三处细节，但不改变它们的决定：
 
-- ADR 4 grouped rows into Active / Idle. The full-height rail, the footer counts, and the navigation-button rows stay; the idle group is gone.
-- ADR 9 kept the project index so the panel could "list recent repositories". The index still feeds discovery and the switch, but the rail no longer lists idle repositories; a dormant panel therefore shows the blank page plus the switch.
-- ADR 10 described a section caption for "recent projects". The caption survives as "Active projects" and counts only active rows.
+- ADR 4 把行分成 Active / Idle 两组。通高的项目栏、页脚计数和导航按钮式的行都保留，空闲组取消。
+- ADR 9 保留项目索引是为了让面板能 "list recent repositories"。索引仍服务于项目发现与开关，但项目栏不再列出空闲仓库，因此休眠的面板显示空白页加开关。
+- ADR 10 描述过一个 "recent projects" 分区题注。题注以 "Active projects" 之名存续，且只统计活跃行。
 
 ## Alternatives considered
 
-**Keep both groups and style the empty page better.** That was the first idea, but the click is the problem, not only the styling: a row that opens nothing is a trap. Hiding the row removes the trap.
+**保留两组，把空页面做得更好看。** 这是最初的想法，但问题出在那一次点击，而不只是样式：点开什么都没有的行是个陷阱。把行藏起来，陷阱就没了。
 
-**Hide only boards that are completely empty (no agents, no claims, no changes).** Closer to the literal complaint, and it would keep idle boards that still hold a history. It was rejected because it needs a second definition of "empty" that drifts from the status dot, and because an idle board with history is still not what the rail is for: the rail answers "who is working now". The cost is that an idle board's frozen timeline is not reachable from the rail while it is idle; that is the accepted trade-off, and the data is still on disk and in the CLI.
+**只隐藏完全空掉的看板（没有代理、没有占用、没有变更）。** 这更接近抱怨的字面意思，也能留住仍有历史的空闲看板。否决的原因是：它需要第二种 "empty" 的定义，而这个定义会与状态圆点漂移脱节，而且一个带历史的空闲看板仍不是项目栏的用途——项目栏回答的是 "who is working now"。代价是：看板空闲期间，它冻结的时间线无法从项目栏进入，这是被接受的取舍，数据仍在磁盘上、在 CLI 里。
 
-**Count a tracked session as activity even without a lease.** The host knows which sessions are attached, so this would keep open-but-quiet conversations in the rail. Rejected: it makes "active" mean "a window is open", and with coordination off it would show rows whose detail page is empty again.
+**把被跟踪的会话也算作活动，即使没有租约。** 宿主知道哪些会话挂着，这样就能把开着但安静的对话留在项目栏里。否决：它让 "active" 变成 "a window is open" 的意思，而且协调关闭时又会显示一些点开后详情依旧为空的行。
 
-**A filter toggle in the rail.** Rejected: the panel has exactly one control; a second one buys discoverability for a list the product deliberately hides.
+**在项目栏里放一个筛选开关。** 否决：面板恰好只有一个控件，再加第二个，换来的只是为一个产品刻意隐藏起来的列表提升可发现性。
 
 ## Consequences
 
-- A dormant install shows the blank page, not a repository list. The blank copy points at the switch, which is the only action available.
-- Finished work leaves the rail as soon as presence goes stale and no lease remains; its timeline is then reachable through the CLI (`godview changes`), not the panel. Revisit this if reviewing finished work in the panel becomes a requirement.
-- The rail is usually short; the empty space below it now reads as calm rather than as a missing list.
-- Tests assert both rules: idle boards are filtered out of the rendered list, and an empty board renders `pt-blank` with zero sections.
+- 休眠状态的安装显示的是空白页，而不是仓库列表。空白页上的文案指向开关，那是唯一可做的操作。
+- 已完成的工作会在在线状态过期且不再剩下租约时立刻离开项目栏，它的时间线此后通过 CLI(`godview changes`)而不是面板查看。如果在面板里回看已完成工作成为需求，再重新审视这一条。
+- 项目栏通常很短，它下方的空白如今读起来是沉静，而不是少了一张列表。
+- 测试断言这两条规则：空闲看板会被过滤出渲染后的列表，而空看板渲染成 `pt-blank`，分区块数为零。
