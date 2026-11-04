@@ -165,6 +165,65 @@ assert.match(decision.reason, /File lease conflict/);
 decision = await pre({ name: 'write', agent: bob, arguments: { path: 'src/auto.ts' } }, async () => allow);
 assert.equal(decision.kind, 'deny', 'the path argument spelling must not bypass the lease check');
 assert.match(decision.reason, /File lease conflict/);
+// The guard covers every structured write tool, not only write/edit: the same
+// edit under another tool name must hit the same lease check (they once sailed
+// straight through, leaving the auto-claim policy full of holes).
+decision = await pre(
+  { name: 'multi_edit', agent: bob, arguments: { file_path: 'src/auto.ts', edits: [] } },
+  async () => allow,
+);
+assert.equal(decision.kind, 'deny', 'multi_edit must not bypass the lease check');
+decision = await pre(
+  { name: 'create_file', agent: bob, arguments: { path: 'src/auto.ts', content: 'x' } },
+  async () => allow,
+);
+assert.equal(decision.kind, 'deny', 'create_file must not bypass the lease check');
+decision = await pre(
+  {
+    name: 'apply_patch',
+    agent: bob,
+    arguments: { patch: '*** Begin Patch\n*** Update File: src/auto.ts\n@@\n-a\n+b\n*** End Patch' },
+  },
+  async () => allow,
+);
+assert.equal(decision.kind, 'deny', 'apply_patch must not bypass the lease check');
+// Moving a file writes the destination too, even when the source is free.
+decision = await pre(
+  {
+    name: 'apply_patch',
+    agent: bob,
+    arguments: {
+      input:
+        '*** Begin Patch\n*** Update File: src/move-source.ts\n*** Move to: src/auto.ts\n@@\n-a\n+b\n*** End Patch',
+    },
+  },
+  async () => allow,
+);
+assert.equal(decision.kind, 'deny', 'a move destination held by another agent must deny the patch');
+assert.equal(S.getClaim(repo, 'src/move-source.ts'), undefined, 'a denied move must not claim its source');
+// An uncontended patch auto-claims every file it touches.
+decision = await pre(
+  {
+    name: 'apply_patch',
+    agent: alice,
+    arguments: {
+      patch:
+        '*** Begin Patch\n*** Add File: src/patch-a.ts\n+x\n*** Update File: src/patch-b.ts\n*** Move to: src/patch-c.ts\n@@\n-a\n+b\n*** End Patch',
+    },
+  },
+  async () => allow,
+);
+assert.equal(decision.kind, 'allow');
+assert.ok(S.getClaim(repo, 'src/patch-a.ts'), 'the patch add target is auto-claimed');
+assert.ok(S.getClaim(repo, 'src/patch-b.ts'), 'the patch update target is auto-claimed');
+assert.ok(S.getClaim(repo, 'src/patch-c.ts'), 'the patch move destination is auto-claimed');
+// An unrecognized patch shape parses to no targets and fails open, never
+// denying on a guess.
+decision = await pre(
+  { name: 'apply_patch', agent: bob, arguments: { patch: 'some unknown format' } },
+  async () => allow,
+);
+assert.equal(decision.kind, 'allow', 'an unparsable patch is not denied');
 // A tool result must update the session's lastAction and files (this used to
 // throw on an uninitialized pendingTouches map and silently skip the update).
 emit('tools/result', { name: 'write', agent: alice, arguments: { file_path: 'src/auto.ts' } });

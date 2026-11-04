@@ -183,7 +183,7 @@ window.__ModuleLoader__.load({
     }
 
     // Brand mark: the radiant eye. A lens outline and pupil with eight
-    // radiating strokes, drawn on the same 24x24 grid and 1.8 stroke as the
+    // radiating strokes, drawn on the same 24x24 grid and 1.7 stroke as the
     // lucide icons around it so it stays legible at 18-19px (ADR 12).
     function BrandGlyph(props) {
       const size = props && props.size ? props.size : 20;

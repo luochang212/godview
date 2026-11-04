@@ -30,7 +30,7 @@
 
 协作的价值是让并行的 Agent 不互相踩踏，所以它**默认是开的**：写入会自动登记占用，别人占着同一个文件时会被拒绝。
 
-不需要的时候，点面板右上角的协作开关关掉即可。关闭后插件不打扰 Agent：不建看板目录、不写 presence、不新增文件占用、不拦截写入、不往 prompt 里塞上下文，三个 `team_*` 工具也会从模型的工具表里撤掉，单 Agent 会话看不到它们。已经存在的显式租约仍由 owner 留到到期；本机 auto 租约在关闭时释放。面板入口、开关接口和全局项目索引仍保留（开关总得有个地方）；除此之外，关闭状态对单 Agent 编辑没有可感知的影响。
+不需要的时候，点顶栏右侧的协作开关关掉即可。关闭后插件不打扰 Agent：不建看板目录、不写 presence、不新增文件占用、不拦截写入、不往 prompt 里塞上下文，三个 `team_*` 工具也会从模型的工具表里撤掉，单 Agent 会话看不到它们。已经存在的显式租约仍由其 owner 持有，直到释放或过期；本机 auto 租约在关闭时释放。面板入口、开关接口和全局项目索引仍保留（开关总得有个地方）；除此之外，关闭状态对单 Agent 编辑没有可感知的影响。
 
 - 中途打开或关闭都可以：打开之前已在改的文件不会被补登记，保护从下一次写入开始。
 - 关闭会释放本机持有的自动占用，历史记录保留但不再更新。
@@ -61,7 +61,7 @@
 每个 DSH 会话在所在仓库里有一条 presence：
 
 - focus：当前工作的一句话；
-- status：active / idle / blocked / done（面板/CLI 把 done 显示为「已结束」）；
+- status：active / idle / blocked / done（面板不显示 done 会话；CLI 把它显示为「已结束」）；
 - heartbeat：证明它还活着；
 - sessionTitle：人类可读的对话标题。
 
@@ -76,7 +76,7 @@ Agent 写文件前先拿 lease：
 - 同一个 Agent 的 claim 可以续租；
 - idle 时 auto claim 自动释放；
 - explicit claim 需要显式 release，或等 TTL 过期；
-- 租约跟随会话存活：owner 的心跳停了，它的租约立即失效、不再拦截别人，下一个 claim 可以直接接管（CLI 里不带会话号的显式租约除外，仍按 TTL 算）。
+- 租约跟随会话存活：owner 的心跳停止超过其 presence TTL（默认 60–90 秒）后，它的租约视为被遗弃、不再拦截别人，下一个 claim 可以直接接管（CLI 里不带会话号的显式租约除外，仍按 TTL 算）。
 
 claim 是精确到文件路径的，不支持目录或 glob。
 
@@ -96,7 +96,7 @@ claim 是精确到文件路径的，不支持目录或 glob。
 
 一个只读界面，整页式应用外壳（全出血，不留页面内边距）：
 
-- **右侧项目栏**：264px 全高，只有一列活跃项目。这一列没有标题、没有计数、没有底部统计；折叠状态记在 localStorage，重载后保持。只列出最近 30 分钟有活动、有进行中/受阻会话，或有文件占用的项目；只有宿主心跳、30 分钟没活动的会话不再算活跃。每行显示状态灯、进行中会话数、受阻数、占用数、变更数和最后活动时间。状态灯：进行中呼吸、受阻红色、仅占用琥珀、仅最近活跃灰色；reduced-motion 下关闭。
+- **右侧项目栏**：264px 全高，只有一列活跃项目。这一列没有标题、没有计数、没有底部统计；折叠状态记在 localStorage，重载后保持。只列出最近 30 分钟有活动、有进行中/受阻会话，或有文件占用的项目；只有宿主心跳、30 分钟没活动的会话不再算活跃。每行显示状态灯、进行中会话数、受阻数、占用数、进行中变更数和最后活动时间。状态灯：进行中呼吸、受阻红色、仅占用琥珀、仅最近活跃灰色；reduced-motion 下关闭。
 - **顶部 bar**：56px，左侧是当前项目名和仓库路径，右侧是宿主规格的协作开关（36×20、打开为品牌色、2px 焦点环）。折叠按钮固定在整个面板的右上角（28×28、面板图标）：展开时压在侧栏右上方，收起时落在顶栏右端，位置完全不变，所以同一个点可以连续开关。
 - **内容区**：独立滚动，两张分区卡片（会话、占用甘特图）直接放在宿主的 bg-base 上；卡片用宿主的 elevation token（0.5px 发丝描边 + 极轻投影）、12px 圆角，表头在卡内、行间用发丝线分隔。甘特条支持 hover / 键盘 focus 的定位 tooltip，直接显示文件、持有者、起止时间、持续时长和 intent/summary；完整事件记录留在 CLI（`godview changes`）里。
 - **没有活跃项目时**：整页是一个安静的空状态，由一个淡图标和一句说明组成（最近还没有活动；有会话工作或占用文件后项目会出现在右侧；协作关闭时提示打开顶栏开关）。不出现空的 section、空甘特图或虚线占位框，方便一眼看清后直接切走。
@@ -104,7 +104,7 @@ claim 是精确到文件路径的，不支持目录或 glob。
 
 界面规则：字号和间距使用统一刻度；名称、路径、focus 等可能超长的内容单行省略，完整值放在 title / tooltip；操作按钮 30px 高，优先图标 + 文字；状态灯、分组和 section 标题全站共用同一套样式。
 
-面板宽度 ≤700px 时，外壳改为纵向堆叠：项目栏变成内容上方的横向可滚动项目条。
+面板宽度 ≤700px 时，外壳改为纵向堆叠：项目栏变成内容上方一条至多 208px 高、可纵向滚动的列表。
 
 ## 🚀 快速开始
 
@@ -181,7 +181,7 @@ Pi 与 DSH 可以同时查看同一仓库的 board。安装、工具语义和边
 
 | 工具            | 用途                                                                    |
 | --------------- | ----------------------------------------------------------------------- |
-| **team_status** | 更新 focus、status、plan、files                                         |
+| **team_status** | 更新 focus、status、plan、files（DSH 侧还支持 name）                    |
 | **team_roster** | 读取当前仓库的存活会话（含空闲、不含已结束）、claim、进行中/最近 change |
 | **team_claim**  | claim / release / list；reason 是 change intent 或 release summary      |
 
@@ -208,15 +208,17 @@ godview leave --id <id>
 ```text
 <repo>/.dsh/parallel/
   config.json
+  README.md / .gitignore        # 自动生成的说明与忽略规则
   agents/<agent-id>.json
   claims/<sha1(repo-relative-path)>.json
   changes/<change-id>.json
 ```
 
-全局只维护一个“最近项目”索引：
+全局只维护一个“最近项目”索引和协作开关：
 
 ```text
 ~/.dsh/parallel/projects.json
+~/.dsh/parallel/state.json
 ```
 
 项目索引只存 root / name / lastSeenAt。真正的 presence、claim、timeline 永远在各仓库自己的 .dsh/parallel 里。跨项目不会合并 claim，也不会互相加锁。
@@ -238,7 +240,7 @@ godview leave --id <id>
 
 完整档案发布在 GitHub Pages：https://www.luochang.ink/godview/
 
-它由 `adr/` 里的记录生成，提供 Folio 和 Signal 两种排版，各有中英文版本。只有推送到 main 且改动涉及 site/、adr/、依赖清单或 workflow 本身时，[site.yml](.github/workflows/site.yml) 才重新构建并部署（也可以在 Actions 里手动触发）；生成的 HTML 和索引不提交。
+它由 `adr/` 里的记录生成，只发布深色 Signal 一种排版（ADR 28），有中英文版本。只有推送到 main 且改动涉及 site/、adr/、依赖清单或 workflow 本身时，[site.yml](.github/workflows/site.yml) 才重新构建并部署（也可以在 Actions 里手动触发）；生成的 HTML 和索引不提交。
 
 本地预览：
 
@@ -264,7 +266,7 @@ npm run dev
 
 `heartbeatMs`/`ttlMs` 的代码默认是 20000/90000；随包示例的 bundle 覆盖为表中的 15000/60000。
 
-write/edit 自动 claim，与他人的活跃 claim 冲突时拒绝写入；面板与 agent 上下文始终展示当前租约。write guard 只覆盖 write/edit；bash 或 run_code 里的 shell 重定向不在保护范围内。
+结构化写工具（write、edit、multi_edit、create_file、apply_patch）自动 claim，与他人的活跃 claim 冲突时拒绝写入；面板与 agent 上下文始终展示当前租约。apply_patch 移动文件时同时保护源路径和目标路径；Pi 同时收到多个路径字段时以原生 `path` 为准。bash 或 run_code 里的 shell 重定向不在保护范围内。
 
 ## 🧪 开发与测试
 
@@ -277,13 +279,13 @@ npm run host:smoke                         # tools / write guard / /projects / /
 node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the coordination switch
 ```
 
-UI 测试需要先启动桌面 DSH、Playwright，以及本机登录 cookie。测试断言：没有输入控件、恰好一个协作开关、右侧项目栏至少一行、选中的项目有甘特图、没有 console error；HAS_SESSION 之类的字段只是打印出来的探针。
+UI 测试需要先启动桌面 DSH、Playwright，以及本机登录 cookie。测试断言：没有输入控件、恰好一个协作开关、右侧项目栏至少一行、选中的项目有甘特图；console error 与 HAS_SESSION 之类的字段是打印出来的探针，需要人工过目。
 
 改动 UI 后刷新页面即可；改动 host 后需要重启 host。开发约定见 [AGENTS.md](AGENTS.md)，文件格式见 [docs/protocol.md](docs/protocol.md)。
 
 ## ⚠️ 边界
 
-- 只跟踪 DSH 内部的会话和 write/edit。
+- 只跟踪 DSH 与 Pi 宿主内的会话，以及结构化写工具（write、edit、multi_edit、create_file、apply_patch）；shell 里的文件改动不跟踪。
 - 不做跨项目锁；不同仓库的并行工作互不阻塞。
 - 项目列表来自 host 跟踪过的 root + 全局注册表；从未打开过的项目不会出现。
 - claim 是精确路径，不覆盖目录和 glob。

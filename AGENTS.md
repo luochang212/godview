@@ -34,27 +34,31 @@ The browser-panel rules in this section describe `dsh-godview`. `pi-godview` v1 
 
 ### Files
 
-| Path                                             | Responsibility                                                                                                                                |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| packages/godview/lib/store.js                    | Shared file format and all local persistence. Source of truth for presence, claims, changes, timeline, project summaries, global registry.    |
-| packages/godview/lib/report.js                   | Shared read-side report: the collision view (working/blocked peers), the roster renderer, and the one conflict-denial text both hosts render. |
-| packages/dsh-godview/lib/index.js                | DSH host plugin. Lifecycle, tools, write guard, prompt context, HTTP routes, project discovery.                                               |
-| packages/dsh-godview/lib/client.js               | Browser bundle loaded through window.**ModuleLoader**. Read-only project rail, sessions, Gantt.                                               |
-| packages/pi-godview/extensions/pi-godview.js     | Pi extension entry. Session lifecycle, tool registration, write/edit guard, and the TUI panel command.                                        |
-| packages/pi-godview/lib/session.js               | Pi session to board agent adapter: presence, heartbeat, claims, status, roster, panel lines.                                                  |
-| packages/pi-godview/test/pi-godview.test.mjs     | Pi lifecycle, tools, guard, panel, extension registration, and package manifest tests.                                                        |
-| packages/godview/bin/godview.mjs                 | Dependency-free CLI over the same store.                                                                                                      |
-| packages/godview/test/store.test.mjs             | Store, timeline, registry, concurrency, CLI tests.                                                                                            |
-| packages/dsh-godview/test/host-smoke.mjs         | Host lifecycle, dormant/enabled coordination, tools, write guard, HTTP routes.                                                                |
-| packages/dsh-godview/test/client-locale.test.mjs | Client language source, live locale switching, and the coordination switch, driven through the real browser bundle.                           |
-| packages/dsh-godview/test/ui-flow.cjs            | Read-only assertions and screenshots against the running desktop host.                                                                        |
-| packages/dsh-godview/test/ui-lang.cjs            | Cold-start language regression against the running desktop host (delayed native locale bridge).                                               |
-| packages/dsh-godview/test/ui-shot.cjs            | Screenshot helper.                                                                                                                            |
-| examples/cordis.patch.yml                        | Profile install example.                                                                                                                      |
-| docs/protocol.md                                 | Board file shapes, HTTP surface, compatibility notes.                                                                                         |
-| adr/                                             | Architecture decision records maintained with adr-kit. Read relevant implemented records before changing scoped behavior.                     |
-| site/                                            | Private Astro build that publishes the dark adr-kit atlas to GitHub Pages at /godview/. Generated atlas HTML is not committed.                |
-| .github/workflows/site.yml                       | Rebuilds the atlas and deploys site/dist to GitHub Pages on pushes that touch site/, adr/, or the manifests.                                  |
+| Path                                                | Responsibility                                                                                                                                |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| packages/godview/lib/store.js                       | Shared file format and all local persistence. Source of truth for presence, claims, changes, timeline, project summaries, global registry.    |
+| packages/godview/lib/report.js                      | Shared read-side report: the collision view (working/blocked peers), the roster renderer, and the one conflict-denial text both hosts render. |
+| packages/dsh-godview/lib/index.js                   | DSH host plugin. Lifecycle, tools, write guard, prompt context, HTTP routes, project discovery.                                               |
+| packages/dsh-godview/lib/client.js                  | Browser bundle loaded through `window.__ModuleLoader__`. Read-only project rail, sessions, Gantt.                                             |
+| packages/pi-godview/extensions/pi-godview.js        | Pi extension entry. Session lifecycle, tool registration, write/edit guard, and the TUI panel command.                                        |
+| packages/pi-godview/lib/session.js                  | Pi session to board agent adapter: presence, heartbeat, claims, status, roster, panel lines.                                                  |
+| packages/pi-godview/lib/tools.js                    | The three team tool definitions for Pi, rendered from the shared report module.                                                               |
+| packages/pi-godview/lib/guard.js                    | Pi tool_call guard: auto-claims write/edit targets, denies live conflicts.                                                                    |
+| packages/pi-godview/test/pi-godview.test.mjs        | Pi lifecycle, tools, guard, panel, extension registration, and package manifest tests.                                                        |
+| packages/godview/bin/godview.mjs                    | Dependency-free CLI over the same store.                                                                                                      |
+| packages/godview/test/store.test.mjs                | Store, timeline, registry, concurrency, CLI tests.                                                                                            |
+| packages/dsh-godview/test/host-smoke.mjs            | Host lifecycle, dormant/enabled coordination, tools, write guard, HTTP routes.                                                                |
+| packages/dsh-godview/test/blocked-renew.test.mjs    | Host heartbeat renews a blocked session's leases after its turn settles.                                                                      |
+| packages/dsh-godview/test/client-locale.test.mjs    | Client language source, live locale switching, and the coordination switch, driven through the real browser bundle.                           |
+| packages/dsh-godview/test/package-manifest.test.mjs | Package manifest shape: exports, files, dsh platform/bundle metadata.                                                                         |
+| packages/dsh-godview/test/ui-flow.cjs               | Read-only assertions and screenshots against the running desktop host.                                                                        |
+| packages/dsh-godview/test/ui-lang.cjs               | Cold-start language regression against the running desktop host (delayed native locale bridge).                                               |
+| packages/dsh-godview/test/ui-shot.cjs               | Screenshot helper.                                                                                                                            |
+| examples/cordis.patch.yml                           | Profile install example.                                                                                                                      |
+| docs/protocol.md                                    | Board file shapes, HTTP surface, compatibility notes.                                                                                         |
+| adr/                                                | Architecture decision records maintained with adr-kit. Read relevant implemented records before changing scoped behavior.                     |
+| site/                                               | Private Astro build that publishes the dark adr-kit atlas to GitHub Pages at /godview/. Generated atlas HTML is not committed.                |
+| .github/workflows/site.yml                          | Rebuilds the atlas and deploys site/dist to GitHub Pages on pushes that touch site/, adr/, or the manifests.                                  |
 
 ### Data layout
 
@@ -84,12 +88,12 @@ The registry is only a recent-project index. Each board remains the source of tr
 - track() registers the root in the global index.
 - presence is written per agent; focus is updated from the first user/subagent prompt and by team_status. Every user/subagent prompt also touches `updatedAt`, which is the activity clock.
 - The heartbeat (`heartbeatAt` + TTL) only proves the host process is alive and drops stale rows. `updatedAt`, claim timestamps, and change timestamps are the activity signals. projectSummary counts a board active when a session is working or blocked, a lease is live, or `lastActivityAt` is within `ACTIVE_WINDOW_MS` (30 minutes); the heartbeat is never used as activity.
-- write/edit goes through tools/pre-execute. A live claim owned by another agent is denied — live means unexpired and owned by a session whose presence still beats; a lease abandoned by its dead owner is takeable and records an `owner presence gone` expire event (ADR 31). There is exactly one guard policy (write/edit auto-claims, conflicts deny; ADR 22).
+- Every structured write tool goes through tools/pre-execute: write, edit, multi_edit, create_file, and apply_patch (targets parsed from the patch text; an unrecognized patch format passes through unguarded rather than being denied on a guess). See [ADR 32](adr/implemented/32-guard-every-structured-write-tool-not-just-write-and-edit.md). A live claim owned by another agent is denied — live means unexpired and owned by a session whose presence still beats; a lease abandoned by its dead owner is takeable and records an `owner presence gone` expire event (ADR 31). There is exactly one guard policy (structured writes auto-claim, conflicts deny; ADR 22).
 - Reports follow the same liveness rule (ADR 31): the prompt context and team_status list only working/blocked peers and leases with a live owner; the roster is the explicit full read (idle included, stale on request). Both hosts render these from godview/report — do not fork the wording or the filtering per host.
 - claim creates or extends the agent's active change and appends claim events to its timeline.
 - release removes the lease, appends release events, and marks the change done when no leases remain.
 - idle releases auto claims; status done releases all of that agent's claims; session disposal releases all; a host shutdown releases all and marks its sessions done.
-- expiry removes expired leases and appends expire events; the same pass sweeps leases abandoned by their dead owner (ADR 31).
+- expiry removes expired leases and appends expire events; the same pass sweeps leases abandoned by their dead owner (ADR 31). The weekly prune records the same expire event when it is what removes an unswept lease, so no path off the board is silent and no change stays claimed behind a vanished lease.
 - GET /projects merges known roots and the global registry, then calls projectSummary() on each board.
 - GET /state?root=<abs> returns one board plus the coordination status. The browser uses that for the detail pane.
 - GET /coordination returns the switch state and how many sessions the host tracks; POST /coordination {enabled} flips it, backfills presence when turning on, and releases this host's auto leases when turning off.
@@ -103,7 +107,7 @@ The registry is only a recent-project index. Each board remains the source of tr
 - UI language comes from the injected `locale` service (`ctx.locale.getSnapshot()` / `ctx.locale.subscribe`), never from a module-time read of `<html lang>`; see [ADR 8](adr/implemented/8-take-the-client-ui-language-from-the-host-locale-service.md). The sidebar label is registration metadata, so it is re-registered when the language changes.
 - Client code must use only browser APIs and the module loader; no Node imports.
 - The plugin has no bundler step. A page refresh loads the latest client.js. The separate site/ project has an Astro build for the published archive.
-- The panel is a full-bleed app shell: a 56px topbar (project name/path and the coordination switch), one scrolling content area, and a 264px rail on the right that is a bare list of active projects and collapses to zero. Rail fill is `--dsw-specific-sidebar-fill`. The rail toggle is pinned to the panel's top-right corner (14px inset) so it does not move when the rail collapses; the rail opens with a 56px top band (the topbar's height, leaving 20px between the button and the first row) and the topbar reserves 44px at its right edge so neither runs under the toggle. The content area, not the topbar's column, is the scroll container.
+- The panel is a full-bleed app shell: a 56px topbar (project name/path and the coordination switch), one scrolling content area, and a 264px rail on the right that is a bare list of active projects and collapses to zero. Rail fill is `--dsw-specific-sidebar-fill`. The rail toggle is pinned to the panel's top-right corner (14px inset) so it does not move when the rail collapses; the rail opens with a 56px top band (the topbar's height, leaving 20px between the button and the first row) and the topbar reserves 46px at its right edge so neither runs under the toggle. The content area, not the topbar's column, is the scroll container.
 
 ## Architecture decisions
 
@@ -149,6 +153,7 @@ Current implemented decisions cover:
 - [ADR 29](adr/implemented/29-keep-the-dsh-parallel-board-path-and-per-host-identity-prefixes.md): the board path stays `.dsh/parallel` as a named historical exception; agent-id prefixes (`dsh-`, `pi-`) live with the hosts, not in the core store API.
 - [ADR 30](adr/implemented/30-unpublish-the-pre-rename-packages-to-release-the-new-names.md): the pre-rename `dsh-god-view` / `pi-god-view` packages were unpublished to clear npm's name-similarity block; ADR 27's "never published" premise is corrected there.
 - [ADR 31](adr/implemented/31-let-leases-and-reports-follow-owner-liveness.md): a host session's lease dies with its presence, and the unprompted reports list only working/blocked peers; both hosts render from the shared godview/report module.
+- [ADR 32](adr/implemented/32-guard-every-structured-write-tool-not-just-write-and-edit.md): the one guard policy covers every structured write tool (write, edit, multi_edit, create_file, apply_patch), not just write/edit; unparsable patch targets fail open.
 
 When a choice is already shipped, use adrkit record with --raised-by and --decided-by. When it is not shipped, use adrkit propose, then adrkit implement after it ships. Do not edit a numbered record to change its choice; supersede or archive it with a new record. Run adrkit validate --all before finishing.
 
@@ -157,12 +162,12 @@ When a choice is already shipped, use adrkit record with --raised-by and --decid
 ```sh
 npm test                                   # all three workspace test suites
 npm run test -w godview                    # store/timeline/concurrency/CLI tests
-npm run test -w dsh-godview                # DSH host and browser client tests
+npm run test -w dsh-godview                # browser client locale, package manifest, blocked-renew tests (host lifecycle lives in host:smoke)
 npm run test -w pi-godview                 # Pi lifecycle/tools/guard/panel/package tests
 npm run host:smoke                         # host tools, guard, /projects, /state, /coordination
 node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the one switch; needs the desktop host + Playwright
 node packages/dsh-godview/test/ui-lang.cjs # cold-start language regression; needs the desktop host + Playwright
-node packages/dsh-godview/test/ui-shot.cjs # write ignored screenshots/01-panel.png and 03-dark.png
+node packages/dsh-godview/test/ui-shot.cjs # write ignored screenshots/local/01-panel.png and 03-dark.png
 npm run site:build                         # generate the atlas and build site/dist; run npm ci in site first
 npm run site:dev                           # local preview at the Pages base path
 ```
@@ -183,7 +188,7 @@ Enable the local pre-commit hook once per clone:
 git config core.hooksPath .githooks
 ```
 
-The hook runs `npm run check` (format, lint, all three test suites, host smoke, adr validate). CI runs `npm ci` and `npm run check` on Node 24. The separate site workflow builds and deploys the archive on pushes that touch site/ or adr/.
+The hook runs `npm run check` (format, lint, all three test suites, host smoke, adr validate). CI runs `npm ci` and `npm run check` on Node 24. The separate site workflow builds and deploys the archive on pushes that touch site/, adr/, the root manifests, or the workflow file itself.
 
 ## Local install and reload
 
@@ -232,7 +237,7 @@ Reloading:
 - Do not make the project index a second source of truth. It stores roots and lastSeenAt; board data comes from each .dsh/parallel.
 - Do not merge claims from different roots in the UI.
 - Claims are exact paths. No directories or globs.
-- The write guard covers write/edit, not arbitrary bash or run_code shell edits.
+- The write guard covers every structured write tool (write, edit, multi_edit, create_file, apply_patch), not arbitrary bash or run_code shell edits. A new host tool that modifies files through structured arguments joins the guarded set (ADR 32).
 - Paths are normalized against the repository root. Never allow absolute paths outside the repo or .. escapes.
 - Timeline events are append-only per change, capped at 200 events. Claim, release, and expire events must include at, agentName, path, and intent/summary.
 - One active change per agent. A new claim joins the active change; release the old change before starting a new one.
@@ -282,7 +287,7 @@ Reloading:
 Before reporting completion:
 
 1. node --check passes for every changed .js/.mjs file.
-2. npm run test -w godview and npm run test -w pi-godview pass.
+2. npm run test -w godview, npm run test -w dsh-godview, and npm run test -w pi-godview pass.
 3. npm run host:smoke passes.
 4. node packages/dsh-godview/test/ui-flow.cjs reports CONTROLS 0, SWITCHES 1, HAS_PROJECTS true, and no console errors. It also asserts one rail toggle and that the rail collapses to zero and restores. When it also prints ACTIVE_ROWS true, HAS_TIMELINE must be true; with no active project the blank page renders instead. When it prints SWITCH_STATE unavailable, the running host predates the coordination route: restart the host and rerun before calling the UI verified.
 5. node packages/godview/bin/godview.mjs claims reports no active claims, or every remaining claim is intentional and explained.

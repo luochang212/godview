@@ -119,6 +119,24 @@ test('guard returns block for a live lease held by another agent', async () => {
   assert.equal(await handlers.tool_call({ toolName: 'write', input: { path: 'src/new.js' } }), undefined);
   assert.equal(S.getClaim(root, 'src/new.js').agent, b.id);
 
+  // Native Pi writes path; an extra alias must not redirect the guard.
+  for (const toolName of ['write', 'edit']) {
+    const mixed = await handlers.tool_call({
+      toolName,
+      input: { path: 'src/blocked.js', file_path: 'src/decoy.js', content: 'nope' },
+    });
+    assert.equal(mixed?.block, true, 'native path wins when an alias is also supplied');
+    assert.equal(S.getClaim(root, 'src/decoy.js'), undefined, 'the unused alias is not claimed');
+  }
+
+  // The guard reads every argument spelling the DSH adapter reads: a variant
+  // tool that carries file_path must hit the same lease check, not slip past.
+  const spelled = await handlers.tool_call({ toolName: 'edit', input: { file_path: 'src/blocked.js' } });
+  assert.equal(spelled.block, true, 'the file_path spelling must not bypass the guard');
+  assert.match(spelled.reason, /File lease conflict/);
+  assert.equal(await handlers.tool_call({ toolName: 'write', input: { file_path: 'src/new2.js' } }), undefined);
+  assert.equal(S.getClaim(root, 'src/new2.js').agent, b.id);
+
   a.stop('test');
   b.stop('test');
   cleanup(root);

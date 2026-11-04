@@ -110,6 +110,33 @@ function writeTargetArg(args) {
   return undefined;
 }
 
+// Every tool whose structured arguments the guard can parse. Shell tools
+// (bash/run_code) stay out of scope by decision, but multi_edit/create_file/
+// apply_patch modify files just like write/edit do: leaving them unguarded let
+// the same edit sail past a live lease under a different tool name.
+const GUARDED_WRITE_TOOLS = new Set(['write', 'edit', 'multi_edit', 'create_file', 'apply_patch']);
+
+// apply_patch carries no path argument; its targets live inside the patch text
+// ("*** Add/Update/Delete File: path" and "*** Move to: path"). A host variant whose headers we do not
+// recognize parses to no targets and the guard fails open, exactly as before —
+// it never denies on a guess.
+const PATCH_FILE_RE = /^\*\*\*\s+(?:(?:Add|Update|Delete|Create) File|Move to):\s*(.+?)\s*$/gm;
+
+function writeTargetArgs(toolName, args) {
+  if (!isObject(args)) return [];
+  if (toolName === 'apply_patch') {
+    const targets = [];
+    for (const key of ['patch', 'input', 'diff']) {
+      const text = args[key];
+      if (typeof text !== 'string') continue;
+      for (const match of text.matchAll(PATCH_FILE_RE)) targets.push(match[1]);
+    }
+    return targets;
+  }
+  const single = writeTargetArg(args);
+  return single === undefined ? [] : [single];
+}
+
 function optString(args, key, max) {
   const value = args[key];
   if (value === undefined || value === null) return undefined;
@@ -241,7 +268,14 @@ class TeamRuntime {
     // does: presence done, every lease released. Without this, a clean quit
     // or update restart would leave leases to age out over their full TTL
     // exactly like a crash. Dormant entries have no board row and are skipped.
-    if (this.coordinationOn === true) {
+    // Read the switch from its file, not from this.coordinationOn: another
+    // process may have flipped it after our last coordination check, and the
+    // cached value would write into a frozen board or skip a live closeout.
+    let coordinationEnabled = false;
+    try {
+      coordinationEnabled = S.readCoordination(this.cfg.registryDir).enabled;
+    } catch {}
+    if (coordinationEnabled) {
       for (const entry of this.tracked.values()) {
         try {
           if (!S.getAgent(entry.root, entry.id)) continue;
@@ -715,36 +749,43 @@ class TeamRuntime {
 
   async beforeTool(exec, next) {
     if (!this.coordinationEnabled()) return next();
-    if (!exec || !exec.agent || (exec.name !== 'write' && exec.name !== 'edit')) return next();
+    if (!exec || !exec.agent || !GUARDED_WRITE_TOOLS.has(exec.name)) return next();
     const entry = this.tracked.get(String(exec.agent.session.id));
     if (!entry) return next();
-    const raw = writeTargetArg(exec.arguments);
-    if (typeof raw !== 'string' || raw.length === 0) return next();
-    let rel;
-    try {
-      rel = this.repoRel(entry, raw);
-    } catch {
-      return next();
-    }
-    if (!rel) return next();
-    let claim;
-    try {
-      claim = S.getClaim(entry.root, rel);
-    } catch {
-      return next();
-    }
-    if (claim && claim.agent !== entry.id) return this.claimDenial(claim, rel);
-    if (!claim) {
+    // One guard policy for every structured write tool (ADR 22): deny on a
+    // live conflicting lease, otherwise auto-claim. apply_patch can touch
+    // several files at once, so the check runs over the whole target list.
+    const rels = [];
+    for (const raw of writeTargetArgs(exec.name, exec.arguments)) {
+      if (typeof raw !== 'string' || raw.length === 0) continue;
       try {
-        const result = S.claimPaths(entry.root, entry.id, [rel], {
+        const rel = this.repoRel(entry, raw);
+        if (rel && !rels.includes(rel)) rels.push(rel);
+      } catch {}
+    }
+    if (rels.length === 0) return next();
+    const unclaimed = [];
+    for (const rel of rels) {
+      let claim;
+      try {
+        claim = S.getClaim(entry.root, rel);
+      } catch {
+        return next();
+      }
+      if (claim && claim.agent !== entry.id) return this.claimDenial(claim, rel);
+      if (!claim) unclaimed.push(rel);
+    }
+    if (unclaimed.length > 0) {
+      try {
+        const result = S.claimPaths(entry.root, entry.id, unclaimed, {
           auto: true,
           ttlMs: this.cfg.autoClaimTtlMs,
-          intent: (entry.presence && entry.presence.focus) || 'auto ' + exec.name + ' ' + rel,
+          intent: (entry.presence && entry.presence.focus) || 'auto ' + exec.name + ' ' + unclaimed[0],
           sessionId: entry.agent && entry.agent.session && entry.agent.session.id,
           sessionTitle: (entry.presence && entry.presence.sessionTitle) || this.sessionTitle(entry.agent),
           reason: 'auto claim for ' + exec.name,
         });
-        if (result.conflicts.length > 0) return this.claimDenial(result.conflicts[0], rel);
+        if (result.conflicts.length > 0) return this.claimDenial(result.conflicts[0], result.conflicts[0].path);
       } catch (error) {
         this.warn(error);
       }
@@ -805,8 +846,13 @@ class TeamRuntime {
     if (!this.coordinationEnabled()) return;
     for (const entry of this.tracked.values()) {
       try {
-        S.heartbeat(entry.root, entry.id);
-        if (entry.agent.status === 'running') S.renewClaims(entry.root, entry.id);
+        const row = S.heartbeat(entry.root, entry.id);
+        // A blocked session is still working: it keeps its leases and waits to
+        // resume (ADR 31), even after its turn settled and the host status went
+        // idle. Renewing on the host status alone let a blocked session's
+        // leases age out silently; the Pi adapter renews on the board status,
+        // so both hosts now follow the same rule.
+        if (entry.agent.status === 'running' || (row && row.status === 'blocked')) S.renewClaims(entry.root, entry.id);
       } catch (error) {
         this.warn(error);
       }

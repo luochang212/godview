@@ -61,7 +61,7 @@ There is no message queue, no inbox, and no "needs reply" state. Focus is a prop
 Each DSH session has a presence row in its repository:
 
 - focus: one line about current work;
-- status: active / idle / blocked / done (the panel/CLI show done as "ended");
+- status: active / idle / blocked / done (the panel hides done sessions; the CLI shows them as "ended");
 - heartbeat: proof that the session is alive;
 - sessionTitle: the human-readable conversation title.
 
@@ -76,7 +76,7 @@ An agent takes a lease before writing:
 - the same agent can renew its own claim;
 - auto claims are released when the agent goes idle;
 - explicit claims need an explicit release, or expire after their TTL;
-- a lease dies with its session: once the owner's heartbeat stops, the lease no longer denies anyone and the next claim takes it over (a CLI lease made without a session keeps its plain TTL).
+- a lease dies with its session: once the owner's heartbeat has stayed silent past its presence TTL (60-90s by default), the lease counts as abandoned, no longer denies anyone, and the next claim takes it over (a CLI lease made without a session keeps its plain TTL).
 
 Claims are exact file paths. Directories and globs are not supported.
 
@@ -104,7 +104,7 @@ One read-only screen rendered as a full-bleed app shell (no page padding):
 
 UI rules: type and spacing use one shared scale; any name, path, or focus that can overflow is single-line ellipsized with the full value in a title/tooltip; action buttons are 30px high and prefer icon + label; status dots, groups, and section headers share one vocabulary.
 
-Below 700px of panel width the shell stacks: the rail becomes a horizontal, scrollable project strip above the content.
+Below 700px of panel width the shell stacks: the rail becomes a vertically scrollable list above the content, capped at 208px.
 
 ## 🚀 Quick start
 
@@ -181,7 +181,7 @@ While coordination is on, the model's catalog carries exactly these three tools 
 
 | Tool            | Purpose                                                                                                          |
 | --------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **team_status** | Update focus, status, plan, and files                                                                            |
+| **team_status** | Update focus, status, plan, and files (plus name on the DSH side)                                                |
 | **team_roster** | Read live sessions (idle included, ended excluded), claims, and active/recent changes for the current repository |
 | **team_claim**  | Claim, release, or list paths; reason is the change intent or release summary                                    |
 
@@ -208,15 +208,17 @@ Each repository has its own board:
 ```text
 <repo>/.dsh/parallel/
   config.json
+  README.md / .gitignore        # generated notes and ignore rules
   agents/<agent-id>.json
   claims/<sha1(repo-relative-path)>.json
   changes/<change-id>.json
 ```
 
-The global index only tracks recent projects:
+The global directory tracks recent projects and the coordination switch:
 
 ```text
 ~/.dsh/parallel/projects.json
+~/.dsh/parallel/state.json
 ```
 
 It stores root / name / lastSeenAt only. Presence, claims, and timelines always live in each repository's own .dsh/parallel. Claims are never merged across projects, and there is no cross-project lock.
@@ -238,7 +240,7 @@ Run **adrkit list** at task start and read the relevant implemented records. Use
 
 The full archive is published on GitHub Pages: https://www.luochang.ink/godview/
 
-It is generated from the records in `adr/`, with Folio and Signal editions in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it only on pushes that touch site/, adr/, the manifests, or the workflow itself (manual dispatch also works); the generated HTML and index are not committed.
+It is generated from the records in `adr/` and publishes only the dark Signal edition (ADR 28), in Chinese and English. [site.yml](.github/workflows/site.yml) rebuilds and deploys it only on pushes that touch site/, adr/, the manifests, or the workflow itself (manual dispatch also works); the generated HTML and index are not committed.
 
 Local preview:
 
@@ -264,7 +266,7 @@ npm run dev
 
 The code defaults for `heartbeatMs`/`ttlMs` are 20000/90000; the bundled example overrides them to the 15000/60000 shown here.
 
-Writes and edits are auto-claimed; a live claim by another agent denies the write. The board and the agents' prompt context always show the current leases. The write guard covers write/edit only. Shell redirection through bash or run_code is outside it.
+Structured write tools (write, edit, multi_edit, create_file, apply_patch) are auto-claimed; a live claim by another agent denies the write. The board and the agents' prompt context always show the current leases. An apply_patch move protects both source and destination; Pi gives its native `path` precedence when multiple path fields are supplied. Shell redirection through bash or run_code is outside the guard.
 
 ## 🧪 Development and testing
 
@@ -277,13 +279,13 @@ npm run host:smoke                         # tools / write guard / /projects / /
 node packages/dsh-godview/test/ui-flow.cjs # read-only UI + the coordination switch
 ```
 
-The UI test requires the desktop DSH host, Playwright, and the local desktop auth cookie. It asserts zero inputs, exactly one coordination switch, at least one active project row, a Gantt for the selected project, and no console errors; fields such as HAS_SESSION are printed probes, not assertions.
+The UI test requires the desktop DSH host, Playwright, and the local desktop auth cookie. It asserts zero inputs, exactly one coordination switch, at least one active project row, and a Gantt for the selected project; console errors and fields such as HAS_SESSION are printed probes for the operator, not assertions.
 
 Refresh the page after client changes; restart the host after host changes. Development rules are in [AGENTS.md](AGENTS.md); the file format is in [docs/protocol.md](docs/protocol.md).
 
 ## ⚠️ Limitations
 
-- Only DSH sessions and DSH write/edit are tracked.
+- Only sessions inside the DSH and Pi hosts are tracked, and only structured write tools (write, edit, multi_edit, create_file, apply_patch); file changes through a shell are not.
 - No cross-project lock; unrelated repositories can work in parallel.
 - The project list comes from roots tracked by the host plus the global registry; a never-opened project does not appear.
 - Claims are exact paths, not directories or globs.
