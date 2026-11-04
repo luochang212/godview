@@ -612,23 +612,95 @@ function recordExpire(root, claim, now, summary = 'lease expired') {
  * Create a lease file exclusively. Returns true when this process created
  * the file; otherwise returns the claim another process put there (or
  * undefined when the file exists but cannot be read).
+ *
+ * The content is written to a private temp file first and published with an
+ * atomic, no-clobber link. open('wx') would make the path visible while it is
+ * still empty, and a concurrent claimer that read that empty file used to fall
+ * back to rewriting it — two processes both believed they owned the lease.
+ * Filesystems without hard links keep the open('wx') path.
  */
 function createLeaseFile(file, next) {
-  let fd;
+  const body = JSON.stringify(next, null, 2) + '\n';
+  const tmp = file + '.' + process.pid + '.' + randomHex(4) + '.tmp';
   try {
-    fd = fs.openSync(file, 'wx', 0o600);
-  } catch (error) {
-    if (error && error.code === 'EEXIST') return readJson(file);
-    throw error;
-  }
-  try {
-    fs.writeFileSync(fd, JSON.stringify(next, null, 2) + '\n');
+    fs.writeFileSync(tmp, body, { mode: 0o600 });
+    try {
+      fs.linkSync(tmp, file);
+      return true;
+    } catch (error) {
+      if (error && error.code === 'EEXIST') return readJson(file);
+      if (!error || !['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS'].includes(error.code)) throw error;
+    }
+    // No hard links on this filesystem: fall back to exclusive create.
+    let fd;
+    try {
+      fd = fs.openSync(file, 'wx', 0o600);
+    } catch (error) {
+      if (error && error.code === 'EEXIST') return readJson(file);
+      throw error;
+    }
+    try {
+      fs.writeFileSync(fd, body);
+    } finally {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    return true;
   } finally {
     try {
-      fs.closeSync(fd);
+      fs.unlinkSync(tmp);
     } catch {}
   }
-  return true;
+}
+
+/**
+ * Remove a lease this process judged stale without deleting a lease another
+ * claimer installed in the meantime. Rename is atomic, so it takes possession
+ * of whatever is at the path right now; if that is no longer the lease we read,
+ * put it back untouched and let the exclusive create decide the owner. Returns
+ * true only when this process removed the expected stale lease, so only one
+ * process records its expiry.
+ */
+function takeOverStaleLease(file, expected) {
+  const moved = file + '.takeover-' + randomHex(4) + '.tmp';
+  try {
+    fs.renameSync(file, moved);
+  } catch {
+    // The file vanished: another claimer removed it first. The exclusive
+    // create below decides who wins.
+    return false;
+  }
+  try {
+    const held = readJson(moved);
+    if (
+      held &&
+      held.agent === expected.agent &&
+      held.changeId === expected.changeId &&
+      held.createdAt === expected.createdAt &&
+      held.expiresAt === expected.expiresAt
+    ) {
+      try {
+        fs.unlinkSync(moved);
+      } catch {}
+      return true;
+    }
+    // We moved a lease that is not the one judged stale: another claimer
+    // replaced or renewed it between our read and the rename. Restore it
+    // without clobbering a lease a third claimer may have created since.
+    try {
+      fs.linkSync(moved, file);
+    } catch {
+      try {
+        if (!exists(file)) fs.renameSync(moved, file);
+      } catch {}
+    }
+    return false;
+  } finally {
+    try {
+      fs.unlinkSync(moved);
+    } catch {}
+  }
 }
 
 export function claimPaths(root, agentId, rawPaths, options = {}) {
@@ -714,17 +786,15 @@ export function claimPaths(root, agentId, rawPaths, options = {}) {
     // overwriting the file (which would leave the loser's change open forever
     // with no lease pointing at it).
     // Only cross-agent takeovers are recorded: a lease re-claimed by its own
-    // agent is a renewal and keeps its original createdAt. Unlink success
-    // decides who records the previous owner's expiry, so concurrent claimers
-    // cannot double-record it.
+    // agent is a renewal and keeps its original createdAt. The atomic rename
+    // in takeOverStaleLease decides who removed the stale lease, so concurrent
+    // claimers cannot both record its expiry or delete each other's fresh one.
     const stale = readJson(file);
     if (stale && stale.agent !== agent.id) {
       const expiredLease = (stale.expiresAt || 0) <= now;
       if (expiredLease || leaseAbandoned(p, stale, now, ownerMemo)) {
-        try {
-          fs.unlinkSync(file);
-          if (stale.changeId) recordExpire(p.root, stale, now, expiredLease ? 'lease expired' : 'owner presence gone');
-        } catch {}
+        if (takeOverStaleLease(file, stale) && stale.changeId)
+          recordExpire(p.root, stale, now, expiredLease ? 'lease expired' : 'owner presence gone');
       }
     }
     const taken = createLeaseFile(file, next);

@@ -595,6 +595,112 @@ test('two agents racing for the same expired lease produce exactly one owner', a
   );
 });
 
+test('a claimer paused after reading a stale lease cannot take it from a faster winner', async () => {
+  const root = repo();
+  for (const id of ['old', 'slow', 'fast']) S.createAgent(root, { id, name: id.toUpperCase() });
+  S.claimPaths(root, 'old', ['lib/paused.ts'], { intent: 'gone' });
+  const file = path.join(S.paths(root).claims, S.hash('lib/paused.ts') + '.json');
+  const claim = JSON.parse(fs.readFileSync(file, 'utf8'));
+  claim.expiresAt = Date.now() - 1000;
+  fs.writeFileSync(file, JSON.stringify(claim));
+
+  // The slow claimer reads the stale lease, then a scheduler pause lands
+  // between that read and the removal. The fast claimer takes the stale lease
+  // and installs its own while the slow one sleeps. Waking up, the slow claimer
+  // must not delete a lease it never read: it re-reads, sees a live owner, and
+  // records a conflict instead of claiming. The pause is the test's only
+  // artificial ingredient; every other step runs the real claimPaths.
+  const worker = path.join(root, 'paused-worker.mjs');
+  fs.writeFileSync(
+    worker,
+    [
+      "import fs from 'node:fs';",
+      `import { claimPaths } from ${JSON.stringify(STORE_URL)};`,
+      'const root = process.argv[2];',
+      'const id = process.argv[3];',
+      'const claimFile = process.argv[4];',
+      'const waiting = process.argv[5];',
+      'const gate = process.argv[6];',
+      'const realRead = fs.readFileSync;',
+      'let reads = 0;',
+      'fs.readFileSync = function (target, ...rest) {',
+      '  const value = realRead.call(fs, target, ...rest);',
+      '  if (typeof target === "string" && target === claimFile) {',
+      '    reads += 1;',
+      '    if (reads === 2) {',
+      '      fs.writeFileSync(waiting, "paused");',
+      '      const deadline = Date.now() + 5000;',
+      '      while (!fs.existsSync(gate)) {',
+      '        if (Date.now() > deadline) throw new Error("the gate never opened");',
+      '      }',
+      '    }',
+      '  }',
+      '  return value;',
+      '};',
+      'const result = claimPaths(root, id, ["lib/paused.ts"], { intent: "paused " + id });',
+      'process.stdout.write(JSON.stringify({ id, claimed: result.claimed.length, conflicts: result.conflicts.length }));',
+      '',
+    ].join('\n'),
+  );
+  const fastWorker = path.join(root, 'fast-worker.mjs');
+  fs.writeFileSync(
+    fastWorker,
+    [
+      `import { claimPaths } from ${JSON.stringify(STORE_URL)};`,
+      'const result = claimPaths(process.argv[2], process.argv[3], ["lib/paused.ts"], { intent: "fast" });',
+      'process.stdout.write(JSON.stringify({ claimed: result.claimed.length, conflicts: result.conflicts.length }));',
+      '',
+    ].join('\n'),
+  );
+  const waiting = path.join(root, 'paused-waiting');
+  const gate = path.join(root, 'paused-go');
+  const run = (script, args) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [script, ...args], { stdio: ['ignore', 'pipe', 'inherit'] });
+      let out = '';
+      child.stdout.on('data', (data) => (out += data));
+      child.on('exit', (code) =>
+        code === 0 ? resolve(JSON.parse(out)) : reject(new Error(script + ' exited ' + code)),
+      );
+      child.on('error', reject);
+    });
+  const waitForFile = async (target) => {
+    const deadline = Date.now() + 5000;
+    while (!fs.existsSync(target)) {
+      if (Date.now() > deadline) throw new Error('the worker never paused');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  };
+
+  const slow = run(worker, [root, 'slow', file, waiting, gate]);
+  await waitForFile(waiting);
+  const fast = await run(fastWorker, [root, 'fast']);
+  assert.equal(fast.claimed, 1, 'the fast claimer takes the stale lease');
+  fs.writeFileSync(gate, 'go');
+  const slowResult = await slow;
+
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).agent, 'fast', 'the fast claimer keeps the lease');
+  assert.equal(slowResult.claimed, 0, 'the paused claimer does not claim a lease it did not see');
+  assert.equal(slowResult.conflicts, 1, 'the paused claimer sees the fast owner as a conflict');
+  assert.equal(
+    S.listChanges(root, { agent: 'slow', state: 'claimed' }).length,
+    0,
+    'the paused claimer keeps no open change with no lease pointing at it',
+  );
+  const oldChange = S.listChanges(root, { agent: 'old' })[0];
+  assert.equal(oldChange.state, 'expired', 'the previous owner gets its closing event');
+  assert.equal(
+    oldChange.timeline.filter((event) => event.type === 'expire').length,
+    1,
+    'the expiry is recorded exactly once',
+  );
+  assert.deepEqual(
+    fs.readdirSync(S.paths(root).claims).filter((name) => name.includes('.takeover-')),
+    [],
+    'no takeover temp file is left behind',
+  );
+});
+
 test('releasePaths never rewrites the closing state of an already-finished change', () => {
   const root = repo();
   S.createAgent(root, { id: 'a', name: 'A' });
