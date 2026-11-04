@@ -31,7 +31,7 @@ function agentIdForSession(sessionId) {
   return 'dsh-' + hash(sessionId).slice(0, 10);
 }
 
-const BOOL_OPTS = new Set(['json', 'help', 'stale', 'all', 'force']);
+const BOOL_OPTS = new Set(['json', 'help', 'stale', 'force']);
 const VALUE_OPTS = new Set([
   'repo',
   'root',
@@ -139,12 +139,13 @@ function commandHelp() {
       'godview - minimal repo-local board for parallel agents',
       '',
       'Usage:',
-      '  godview join   [--name NAME] [--id ID] [--focus TEXT] [--role ROLE]',
+      '  godview init',
+      '  godview join   [--name NAME] [--id ID | --session ID] [--focus TEXT] [--role ROLE]',
       '  godview status --id ID [--status active|idle|blocked|done] [--focus TEXT] [--plan TEXT]',
       '  godview leave  --id ID',
       '  godview list   [--json] [--stale]',
-      '  godview claim  --id ID --paths FILE [--paths FILE2] [--mode edit|review] [--reason TEXT]',
-      '  godview release --id ID --paths FILE [--force]',
+      '  godview claim  --id ID --paths FILE [--paths FILE2] [--mode edit|review] [--reason|--intent TEXT] [--ttl-minutes N]',
+      '  godview release --id ID --paths FILE [--summary TEXT] [--force]',
       '  godview claims [--json]',
       '  godview changes [--json] [--limit N]',
       '',
@@ -195,6 +196,11 @@ async function main() {
     }
     case 'status': {
       const id = agentId(opts);
+      // A typo must fail loudly: the store silently keeps the old status for an
+      // unknown value, so without this check the CLI would print success while
+      // writing nothing the user asked for.
+      if (opts.status && !['active', 'idle', 'blocked', 'done'].includes(opts.status))
+        throw new Error('status must be active, idle, blocked, or done');
       const patch = {};
       if (opts.name) patch.name = opts.name;
       if (opts.focus !== undefined) patch.focus = opts.focus;

@@ -234,8 +234,15 @@ export function prune(root, options = {}) {
             const change = readJson(file);
             if (change && change.id && heldChangeIds.has(change.id)) continue;
           }
+          const claim = kind === 'claims' ? readJson(file) : undefined;
           fs.unlinkSync(file);
           removed[kind]++;
+          // Every lease that leaves the board records a terminal event. The
+          // expiry sweep normally gets here first; when prune is what removes
+          // an unswept lease (a board no host visited for a week), prune owns
+          // the bookkeeping — otherwise the change stays claimed forever with
+          // no lease pointing at it and the next claim silently joins it.
+          if (claim && claim.path) recordExpire(root, claim, now);
         }
       } catch {}
     }
@@ -509,12 +516,17 @@ export function getChange(root, id) {
   return readJson(changeFile(root, id));
 }
 
-export function listChanges(root, options = {}) {
+// The filter/sort/normalize pipeline over already-loaded change rows. Kept
+// separate from listChanges so snapshot() reads the (potentially large)
+// changes directory once instead of once per view — this is the hottest read
+// path there is: the panel polls /projects and /state every 2.5 seconds and
+// each project summary used to parse every change file twice.
+function changesFrom(rows, options = {}) {
   const limit = Math.max(0, Math.min(200, Number(options.limit) || 50));
-  let changes = listJson(paths(root).changes);
+  let changes = rows;
   if (options.state) changes = changes.filter((change) => change.state === options.state);
   if (options.agent) changes = changes.filter((change) => change.agent === options.agent);
-  changes.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  changes = changes.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return changes.slice(0, limit).map((change) => {
     // A legacy or hand-edited change may have no paths array. Readers such as
     // team_roster and the CLI join paths directly, so normalize it here for
@@ -546,6 +558,10 @@ export function listChanges(root, options = {}) {
     }
     return { ...normalized, timeline };
   });
+}
+
+export function listChanges(root, options = {}) {
+  return changesFrom(listJson(paths(root).changes), options);
 }
 
 export function activeChange(root, agentId) {
@@ -800,13 +816,17 @@ export function releasePaths(root, agentId, rawPaths, options = {}) {
     ].slice(0, 100);
     change.timeline = Array.isArray(change.timeline) ? change.timeline : [];
     for (const claim of released.filter((item) => item.changeId === id)) {
+      // The event stays attributed to the lease owner (the Gantt colors bars
+      // by owner), but a forced cross-agent release must not read as if the
+      // owner had released it themselves: the summary names the actor.
+      const forced = claim.agent !== agent.id;
       change.timeline.push({
         type: 'release',
         at: now,
         agent: claim.agent,
         agentName: options.actorName || claim.agentName || agent.name,
         path: claim.path,
-        summary,
+        summary: forced ? summary + ' (forced by ' + (agent.name || agent.id) + ')' : summary,
       });
     }
     change.timeline = change.timeline.slice(-200);
@@ -1001,8 +1021,9 @@ export function snapshot(root, options = {}) {
   // out of it: a busy board can easily have 30 newer finished changes while one
   // long-running claim is still held. The rail would then say "1 claim" while
   // the Gantt had no bar for it.
-  const recent = listChanges(p.root, { limit: options.changeLimit || 30 });
-  const activeChanges = listChanges(p.root, { state: 'claimed', limit: 200 });
+  const changeRows = listJson(p.changes);
+  const recent = changesFrom(changeRows, { limit: options.changeLimit || 30 });
+  const activeChanges = changesFrom(changeRows, { state: 'claimed', limit: 200 });
   const byId = new Map();
   for (const change of recent) byId.set(change.id, change);
   for (const change of activeChanges) byId.set(change.id, change);

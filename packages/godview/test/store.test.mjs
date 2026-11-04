@@ -202,6 +202,16 @@ test('a forced cross-agent release keeps the lease owner on the timeline', () =>
   const release = S.listChanges(root)[0].timeline.find((event) => event.type === 'release');
   assert.equal(release.agent, 'a');
   assert.equal(release.agentName, 'A', 'agentName identifies the lease owner, not the agent that forced the release');
+  assert.match(release.summary, /stale \(forced by B\)/, 'the summary names who forced the release');
+});
+
+test('an owner release keeps its plain summary', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  S.claimPaths(root, 'a', ['src/mine.ts']);
+  S.releasePaths(root, 'a', ['src/mine.ts'], { summary: 'done here' });
+  const release = S.listChanges(root)[0].timeline.find((event) => event.type === 'release');
+  assert.equal(release.summary, 'done here', 'no forced-by suffix when the owner releases');
 });
 
 test('a dead host does not erase the recent activity it recorded', () => {
@@ -403,6 +413,26 @@ test('CLI claim conflict and release timeline', () => {
   assert.match(recent.stdout, /fixed/);
   assert.match(recent.stdout, /\[released\]/, 'a released change is not displayed as done');
   assert.doesNotMatch(recent.stdout, /\[done\]/);
+});
+
+test('CLI status rejects an unknown status value', () => {
+  const root = repo();
+  const cli = CLI_PATH;
+  const joined = spawnSync(process.execPath, [cli, 'join', '--repo', root, '--name', 'a'], { encoding: 'utf8' });
+  const id = /export DSH_PARALLEL_AGENT_ID=(.+)/.exec(joined.stdout)[1].trim();
+  // A typo must fail loudly: the store keeps the old status for an unknown
+  // value, so a silent success would print exactly what the user did not set.
+  const bad = spawnSync(process.execPath, [cli, 'status', '--repo', root, '--id', id, '--status', 'actiev'], {
+    encoding: 'utf8',
+  });
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /status must be active, idle, blocked, or done/);
+  assert.equal(S.getAgent(root, id).status, 'active', 'the invalid value is not written');
+  const good = spawnSync(process.execPath, [cli, 'status', '--repo', root, '--id', id, '--status', 'blocked'], {
+    encoding: 'utf8',
+  });
+  assert.equal(good.status, 0, good.stderr);
+  assert.equal(S.getAgent(root, id).status, 'blocked');
 });
 
 test('CLI list hides stale agents unless --stale is passed', () => {
@@ -691,6 +721,29 @@ test('the global registry directory is not a repository marker', () => {
   assert.ok(fs.existsSync(path.join(notes, S.STORE_DIR, 'agents')));
   assert.equal(fs.existsSync(path.join(registry, 'agents')), false, 'the registry gains no board rows');
   fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('prune records a terminal event when it removes an unswept lease', () => {
+  const root = repo();
+  S.createAgent(root, { id: 'a', name: 'A' });
+  const { change } = S.claimPaths(root, 'a', ['src/dust.ts'], { intent: 'old work' });
+  // Simulate a lease that expired long ago on a board no host ever swept, so
+  // prune is what removes it. Every lease that leaves the board must record a
+  // terminal event; without it the change stays claimed forever and the next
+  // claim silently joins it.
+  const claimFile = path.join(S.paths(root).claims, S.hash('src/dust.ts') + '.json');
+  const old = new Date(Date.now() - 8 * 24 * 60 * 60_000);
+  fs.utimesSync(claimFile, old, old);
+  const pruned = S.prune(root);
+  assert.equal(pruned.claims, 1);
+  assert.equal(fs.existsSync(claimFile), false);
+  const after = S.getChange(root, change.id);
+  assert.equal(after.state, 'expired', 'the change is closed, not left claimed');
+  assert.ok(
+    after.timeline.some((event) => event.type === 'expire' && event.path === 'src/dust.ts'),
+    'the prune sweep appends the expire event',
+  );
+  assert.equal(S.activeChange(root, 'a'), undefined, 'no zombie active change is left to join');
 });
 
 test('prune keeps a change referenced by a live lease', () => {
